@@ -1,0 +1,5 @@
+A Cog Graph is a persistent, structured store of information.
+Many data structures can simply be described as a graph, so this system
+generalizes the digital representation and makes it widely applicable.
+The functional face is a .sqlite file; the inspectable face is a derived .md
+sidecar beside it, which the engine writes and never reads.
