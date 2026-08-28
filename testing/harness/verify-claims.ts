@@ -108,19 +108,25 @@ function checkE2(msgs: AnyMsg[]): ClaimResult {
       detail: `needs >= 2 turns to compare; transcript has ${results.length}`,
     };
   }
+  // Check every counter, not a favourite few. `cache_creation_input_tokens` is
+  // in practice the likeliest to drop (a large cache write on turn 1, a small
+  // one after) — omitting it made a real run read INCONCLUSIVE when the
+  // evidence was sitting right there.
+  const counters: { label: string; get: (r: AnyMsg) => number }[] = [
+    { label: "input_tokens", get: (r) => r?.usage?.input_tokens ?? 0 },
+    { label: "output_tokens", get: (r) => r?.usage?.output_tokens ?? 0 },
+    { label: "cache_read_input_tokens", get: (r) => r?.usage?.cache_read_input_tokens ?? 0 },
+    { label: "cache_creation_input_tokens", get: (r) => r?.usage?.cache_creation_input_tokens ?? 0 },
+    { label: "total_cost_usd", get: (r) => r?.total_cost_usd ?? 0 },
+  ];
+
   const evidence: string[] = [];
   for (let i = 1; i < results.length; i++) {
-    const prev = results[i - 1];
-    const cur = results[i];
-    const pIn = prev?.usage?.input_tokens ?? 0;
-    const cIn = cur?.usage?.input_tokens ?? 0;
-    const pCache = prev?.usage?.cache_read_input_tokens ?? 0;
-    const cCache = cur?.usage?.cache_read_input_tokens ?? 0;
-    const pCost = prev?.total_cost_usd ?? 0;
-    const cCost = cur?.total_cost_usd ?? 0;
-    if (cIn < pIn) evidence.push(`turn ${i + 1} input_tokens ${cIn} < turn ${i} ${pIn}`);
-    if (cCache < pCache) evidence.push(`turn ${i + 1} cache_read ${cCache} < turn ${i} ${pCache}`);
-    if (cCost < pCost) evidence.push(`turn ${i + 1} cost ${cCost} < turn ${i} ${pCost}`);
+    for (const c of counters) {
+      const prev = c.get(results[i - 1]);
+      const cur = c.get(results[i]);
+      if (cur < prev) evidence.push(`turn ${i + 1} ${c.label} ${cur} < turn ${i} ${prev}`);
+    }
   }
   if (evidence.length) {
     return { id: "E2", claim, verdict: "PASS", detail: `counter decreased (impossible if cumulative): ${evidence[0]}` };

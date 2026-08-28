@@ -79,7 +79,33 @@ function execInSandbox(cmd: string, cwd: string): Promise<{ stdout: string; stde
   });
 }
 
+/**
+ * Credential preflight (E5). The SDK accepts either a Claude Code OAuth token
+ * (`claude setup-token`) or an Anthropic API key. Fail here with a legible
+ * message rather than letting a missing credential surface as an opaque
+ * mid-stream SDK error.
+ */
+function assertCredential(): void {
+  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
+    throw new Error(
+      "No credential found. Set CLAUDE_CODE_OAUTH_TOKEN (run `claude setup-token`) or " +
+        "ANTHROPIC_API_KEY, in your environment or .env. See DESIGN.md (E5).",
+    );
+  }
+}
+
+/**
+ * Keep exactly one auth path live so a failure names the right cause. When an
+ * OAuth token is present it wins and the API key is stripped; when only the key
+ * is present it passes through untouched.
+ */
+function credentialEnv(): Record<string, string | undefined> {
+  return process.env.CLAUDE_CODE_OAUTH_TOKEN ? { ANTHROPIC_API_KEY: undefined } : {};
+}
+
 export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResult> {
+  assertCredential();
+
   const startedAt = Date.now();
   const transcript = new Transcript();
   const gates: GateResult[] = [];
@@ -125,11 +151,12 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     abortController: abort,
     env: {
       ...process.env,
-      // Nested-session hygiene + single auth path (CLAUDE_CODE_OAUTH_TOKEN only).
+      // Nested-session hygiene: the harness may itself run inside a Claude Code
+      // session, and these leak the parent's identity into the child.
       CLAUDECODE: undefined,
       CLAUDE_CODE_ENTRYPOINT: undefined,
-      ANTHROPIC_API_KEY: undefined,
       CLAUDE_CONFIG_DIR: configDir,
+      ...credentialEnv(),
     },
   };
 
