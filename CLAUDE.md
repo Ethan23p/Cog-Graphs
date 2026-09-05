@@ -19,26 +19,22 @@ says otherwise — the doc wins.
 
 ## Sharpening the domain
 
-Treat the doc's `Entities` section as the glossary and its `Ideation` / `RESOLVED`
-blocks as the decision log — don't stand up a parallel `CONTEXT.md` or ADR file for
-this project, that would just create a second source of truth. Instead, apply the
-discipline directly against the Logseq page:
-
-- **Sharpen fuzzy language.** When a term is ambiguous or overloaded (Ethan's or your
-  own), propose the precise term from the doc's `Entities` section rather than letting
-  a vague word stand — e.g. don't conflate "Convention" with "Profile," or "Interface
-  Agent" with "the user's AI Assistant." If no existing entity fits, say so; that's a
-  sign the glossary itself may need to grow.
-- **Discuss concrete scenarios.** Before committing to a design point, stress-test it
-  with a specific scenario the way the doc's `User Experience Flows` and `Walking
-  Skeleton` already do. Invent edge cases that force precision about boundaries between
-  entities, rather than agreeing with an abstract description.
-- **Cross-reference with code.** When the doc states how something works, check whether
-  the implementation agrees. If they diverge, surface it plainly and treat the doc as
-  authoritative — per Roles below, that's Ethan's call to resolve, not a coin flip.
-
-If something crystallizes mid-session and is worth keeping, the durable home for it is
-the Logseq page itself (via the logseq-interface skill), not a local markdown file.
+- Treat the doc's `Entities` section as a glossary and its `Ideation` / `RESOLVED`
+  blocks as a decision log.
+- Sharpen fuzzy language - Maintain a discipline toward using the precise language from
+  the design doc - like the abstractions provided in the 'Entities' and 'Capabilities'
+  section. If you notice this discipline start to slip - ambiguity, overloaded term,
+  etc - in your own response, in the code, or even in Ethan's responses, you should
+  explicitly mention it and work toward a resolution. That might mean changing the
+  code, that might mean adding a new word to the canon via Ethan.
+- Discuss concrete scenarios - When you're formulating implementation, stress-test it
+  with a specific scenario like the design doc does in the 'UX Flows'; imagine edge
+  cases which might force greater precision, more explicit boundaries, or simply more
+  robust code.
+- Cross-reference with code - When reviewing implementation and code, be sure that it
+  agrees with the design doc. If there is divergence, feel free to surface it plainly
+  for Ethan to review. Always treat the design-doc as authoritative, but own
+  implementation and push for greater clarity when helpful.
 
 ## Roles
 
