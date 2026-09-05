@@ -17,6 +17,25 @@ It is the source of truth for scope, entities, capabilities, roadmap, and test c
 Don't restate it in this file, and don't infer requirements from the code when the doc
 says otherwise — the doc wins.
 
+## Sharpening the domain
+
+- Treat the doc's `Entities` section as a glossary and its `Ideation` / `RESOLVED`
+  blocks as a decision log.
+- Sharpen fuzzy language - Maintain a discipline toward using the precise language from
+  the design doc - like the abstractions provided in the 'Entities' and 'Capabilities'
+  section. If you notice this discipline start to slip - ambiguity, overloaded term,
+  etc - in your own response, in the code, or even in Ethan's responses, you should
+  explicitly mention it and work toward a resolution. That might mean changing the
+  code, that might mean adding a new word to the canon via Ethan.
+- Discuss concrete scenarios - When you're formulating implementation, stress-test it
+  with a specific scenario like the design doc does in the 'UX Flows'; imagine edge
+  cases which might force greater precision, more explicit boundaries, or simply more
+  robust code.
+- Cross-reference with code - When reviewing implementation and code, be sure that it
+  agrees with the design doc. If there is divergence, feel free to surface it plainly
+  for Ethan to review. Always treat the design-doc as authoritative, but own
+  implementation and push for greater clarity when helpful.
+
 ## Roles
 
 Ethan is the designer, architect, and project manager. He decides scope, makes the
