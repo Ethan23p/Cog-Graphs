@@ -261,3 +261,27 @@ describe("DE-16 — remove-item removes the targeted item", () => {
     expect(artifactIntegrity(db).orphanRows).toBe(0);
   });
 });
+
+describe("DE-18 — the sidecar no longer enumerates the removed item", () => {
+  // The third of the derived-file cases and the one with the sharpest consequence. A
+  // stale add is a missing line; a stale modify is a wrong value; a stale *removal*
+  // leaves an item on display that the graph no longer holds — an observer reading the
+  // inspectable face would swear the graph contains something it does not.
+  test("drops the removed item and keeps the rest", () => {
+    const { cwd, namespace, sidecar } = spawnGraph({ namespace: "de18" });
+    runCli(["add-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=abandoned"], {
+      cwd,
+    });
+    runCli(
+      ["add-item", "--graph", namespace, "--entity", "Outer Wilds", "--attr", "status=playing"],
+      { cwd },
+    );
+
+    runCli(["remove-item", "--graph", namespace, "--entity", "Tunic"], { cwd });
+
+    const text = readSidecar(sidecar);
+    expect(text).not.toContain("Tunic");
+    expect(text).not.toContain("abandoned");
+    expect(text).toContain("Outer Wilds");
+  });
+});
