@@ -285,3 +285,33 @@ describe("DE-18 — the sidecar no longer enumerates the removed item", () => {
     expect(text).toContain("Outer Wilds");
   });
 });
+
+describe("DE-17 — remove-item on a non-existent entity", () => {
+  // The case says "errors legibly rather than succeeding silently", and the silent
+  // success is the specific danger. `DELETE WHERE name = ?` matching zero rows is not an
+  // error to SQLite, so the natural implementation exits 0 and reports a removal that
+  // never happened. An Operator who mistyped a name would be told their item is gone
+  // while it sits in the graph untouched — and would have no reason to look again.
+  //
+  // Legible, for an agent, means the error carries what it needs to recover without
+  // another round trip. A near-miss on a name is the overwhelmingly likely cause here,
+  // so the error names what the graph actually holds.
+  test("errors, changes nothing, and says what the graph does hold", () => {
+    const { cwd, namespace, db } = spawnGraph({ namespace: "de17" });
+    runCli(["add-item", "--graph", namespace, "--entity", "Outer Wilds", "--attr", "status=playing"], {
+      cwd,
+    });
+
+    const r = runCli(["remove-item", "--graph", namespace, "--entity", "Outer Wild"], { cwd });
+
+    expect(r.exitCode).toBe(EXIT.NOT_FOUND);
+    const error = JSON.parse(r.stderr);
+    expect(error.code).toBe("entity_not_found");
+    expect(error.message).toContain("Outer Wild");
+    expect(error.next_step).toContain("Outer Wilds");
+    // Nothing was touched on the way to failing.
+    expect(readItems(db)).toEqual([
+      { entity: "Outer Wilds", attributes: { status: "playing" } },
+    ]);
+  });
+});
