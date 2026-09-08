@@ -682,7 +682,24 @@ if (command === "add-item") {
 if (command === "query") {
   const { namespace, dbPath } = resolveGraph();
   const db = new Database(dbPath, { readonly: true });
-  const items = readItems(db);
+  const include = parseAttrs("--attr");
+  const exclude = parseAttrs("--exclude");
+  // Selection search, per the doc: simple inclusion/exclusion over attributes and
+  // values. Every --attr must match and no --exclude may, which is what makes repeated
+  // narrow queries a way to traverse — each attribute is a handhold.
+  //
+  // NOTE: no v0.3.1 case exercises the filters. The grammar line and the selection
+  // strategy are both ratified in the doc, so the behavior is spec rather than
+  // invention, but the second layer does not currently pin it. Raised for Ethan.
+  const items = readItems(db).filter((item) => {
+    for (const [attribute, value] of Object.entries(include)) {
+      if (item.attributes[attribute] !== value) return false;
+    }
+    for (const [attribute, value] of Object.entries(exclude)) {
+      if (item.attributes[attribute] === value) return false;
+    }
+    return true;
+  });
   db.close();
   // An empty graph answers with the same shape as a full one — same fields, same types.
   // Answering `{}` or a null items list when empty would force every caller to write the

@@ -46,3 +46,21 @@ _None._
 ## Resolved
 
 _None._
+
+### Coverage gap — query's `--attr` / `--exclude` filters have no v0.3.1 case
+- **Raised**: 2026-09-08 by Claude
+- **Not a dispute about a landed case** — recorded here because this is where
+  second-layer problems go, and there is no better home for it yet.
+- **The situation**: the doc ratifies the grammar line
+  `cog-graphs query --graph <ns> [--attr k=v ...] [--exclude k=v ...]` (59547) and
+  defines the semantics under Library > search strategies > selection (56424-56429).
+  DE-5 therefore requires both flags to appear in `query --help`, and DE-4 requires
+  them in the recognized-options list. But no v0.3.1 case exercises what they *do*.
+- **What I did**: implemented selection filtering as the doc describes it — every
+  `--attr` must match, no `--exclude` may — because help that names a flag which does
+  nothing is worse than no flag. Marked the engine code with the same note.
+- **Why it matters**: this is the doc's one search strategy for v0.3.1 and the thing
+  that makes iterative traversal possible (56429). It is currently the largest piece of
+  shipped behavior with nothing in the second layer pinning it.
+- **Resolution**: <Ethan — add a DE case for selection filtering, or confirm the gap is
+  intentional for the MVI.>
