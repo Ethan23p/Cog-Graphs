@@ -125,3 +125,62 @@ describe("DE-11 — add-item on an existing entity", () => {
     expect(readItems(db)).toEqual([{ entity: "Tunic", attributes: { status: "backlog" } }]);
   });
 });
+
+describe("DE-13 — modify-item changes what it names and nothing else", () => {
+  // "Attributes not named in the command are unchanged" is the assertion with teeth. The
+  // obvious wrong implementation is replace-the-item — take the pairs given and write
+  // them as the whole record — which is indistinguishable from correct on a
+  // single-attribute item and silently destroys everything else on a real one. Since the
+  // Operator names only what changed, that failure erases exactly the accumulated
+  // knowledge the graph exists to hold.
+  test("named attributes take the new value, unnamed ones survive, new ones are added", () => {
+    const { cwd, namespace, db } = spawnGraph({ namespace: "de13" });
+    runCli(
+      [
+        "add-item",
+        "--graph",
+        namespace,
+        "--entity",
+        "Outer Wilds",
+        "--attr",
+        "status=playing",
+        "--attr",
+        "taste-alignment=very high",
+        "--attr",
+        "source=a friend",
+      ],
+      { cwd },
+    );
+
+    const r = runCli(
+      [
+        "modify-item",
+        "--graph",
+        namespace,
+        "--entity",
+        "Outer Wilds",
+        "--attr",
+        "status=completed",
+        "--attr",
+        "finished-on=2026-09-08",
+      ],
+      { cwd },
+    );
+
+    expect(r.exitCode).toBe(EXIT.OK);
+    const expected = {
+      entity: "Outer Wilds",
+      attributes: {
+        status: "completed",
+        "taste-alignment": "very high",
+        source: "a friend",
+        "finished-on": "2026-09-08",
+      },
+    };
+    // The database and the CLI are both asserted here for the same reason DE-9 and DE-10
+    // are separate cases: storing it right and reporting it right are different claims.
+    expect(readItems(db)).toEqual([expected]);
+    const queried = JSON.parse(runCli(["query", "--graph", namespace], { cwd }).stdout);
+    expect(queried.items).toEqual([expected]);
+  });
+});

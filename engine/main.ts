@@ -696,6 +696,51 @@ if (command === "add-item") {
   succeed({ graph: namespace, entity, attributes, added: true });
 }
 
+if (command === "modify-item") {
+  const { namespace, dbPath } = resolveGraph();
+  const entity = optionValue("--entity");
+  if (!entity) {
+    fail(
+      EXIT.USAGE,
+      "missing_value",
+      "--entity needs the name of the entity to modify.",
+      `Name it: cog-graphs modify-item --graph ${namespace} --entity <name> --attr key=value`,
+    );
+  }
+  const attributes = parseAttrs();
+
+  const db = new Database(dbPath);
+  const existing = db.query("SELECT id FROM entity WHERE name = ?").get(entity) as
+    | { id: number }
+    | undefined;
+  if (!existing) {
+    db.close();
+    fail(
+      EXIT.NOT_FOUND,
+      "entity_not_found",
+      `'${entity}' is not in ${namespace}.`,
+      `Use add item instead: cog-graphs add-item --graph ${namespace} --entity '${entity}' --attr key=value`,
+    );
+  }
+
+  // Set the named attributes and leave every other one alone. The tempting shortcut —
+  // delete the entity's rows and write the given pairs as the whole record — is
+  // indistinguishable from correct on a single-attribute item and silently erases
+  // everything else on a real one. Since the Operator names only what changed, that
+  // shortcut destroys exactly the accumulated knowledge the graph exists to hold.
+  const upsert = db.prepare(
+    "INSERT INTO eav (entity_id, attribute, value) VALUES (?, ?, ?) " +
+      "ON CONFLICT (entity_id, attribute) DO UPDATE SET value = excluded.value",
+  );
+  for (const [attribute, value] of Object.entries(attributes)) {
+    upsert.run(existing.id, attribute, value);
+  }
+  db.close();
+  writeSidecar(dbPath);
+
+  succeed({ graph: namespace, entity, attributes, modified: true });
+}
+
 if (command === "query") {
   const { namespace, dbPath } = resolveGraph();
   const db = new Database(dbPath, { readonly: true });
