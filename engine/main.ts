@@ -5,7 +5,7 @@
 // the process boundary is the whole contract.
 
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 
 const argv = process.argv.slice(2);
@@ -245,6 +245,93 @@ const HELP: Record<string, Help> = {
   },
 };
 
+/**
+ * Render the inspectable face.
+ *
+ * Two rules govern this file and both come straight from the doc. It is *derived*: the
+ * engine writes it and never reads it, so anything only recorded here is not recorded.
+ * And it is *for an observer* — the person or agent who found a `.sqlite` in a directory
+ * and has no idea what it is — so it leads with what the graph is for and how to work
+ * it, and the item listing comes after.
+ */
+function renderSidecar(dbPath: string): string {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const namespace =
+      (
+        db.query("SELECT value FROM profile WHERE field = 'namespace'").get() as
+          | { value: string }
+          | undefined
+      )?.value ?? path.basename(dbPath, ".sqlite");
+    const profile = db.query("SELECT field, value FROM profile").all() as {
+      field: string;
+      value: string;
+    }[];
+    const convention = (
+      db.query("SELECT text FROM convention ORDER BY seq").all() as { text: string }[]
+    ).map((r) => r.text);
+    const entities = db.query("SELECT id, name FROM entity ORDER BY name").all() as {
+      id: number;
+      name: string;
+    }[];
+    const attributes = db
+      .query("SELECT entity_id, attribute, value FROM eav ORDER BY attribute")
+      .all() as { entity_id: number; attribute: string; value: string }[];
+
+    const lines: string[] = [];
+    lines.push(`# ${namespace}`, "");
+    lines.push(
+      "> Derived file — do not edit. The engine rewrites it whenever the graph changes,",
+      `> and never reads it back. Everything real lives in \`${path.basename(dbPath)}\`.`,
+      "",
+    );
+    lines.push(
+      "This is a **Cog Graph**: a persistent store of entities and the attribute/value",
+      "pairs recorded about them. It is meant to be worked through the `cog-graphs` CLI —",
+      "`cog-graphs introduce --graph " + namespace + "` is the way in, and",
+      "`cog-graphs introduce --interface-skill` is the full primer.",
+      "",
+    );
+
+    lines.push("## Profile", "");
+    for (const { field, value } of profile) lines.push(`- **${field}**: ${value}`);
+    lines.push("");
+
+    lines.push("## Convention", "");
+    lines.push(
+      "The expectations this graph keeps about its own shape. Amended as the data changes.",
+      "",
+    );
+    if (convention.length === 0) lines.push("_None recorded._", "");
+    else for (const text of convention) lines.push(`- ${text}`), lines.push("");
+
+    lines.push("## Contents", "");
+    if (entities.length === 0) {
+      lines.push("_Empty — nothing has been added yet._", "");
+    } else {
+      lines.push(`${entities.length} ${entities.length === 1 ? "entity" : "entities"}.`, "");
+      for (const entity of entities) {
+        lines.push(`### ${entity.name}`, "");
+        const own = attributes.filter((a) => a.entity_id === entity.id);
+        if (own.length === 0) lines.push("_No attributes recorded._", "");
+        else {
+          for (const a of own) lines.push(`- **${a.attribute}**: ${a.value}`);
+          lines.push("");
+        }
+      }
+    }
+    return lines.join("\n");
+  } finally {
+    db.close();
+  }
+}
+
+/** Rewrite the inspectable face from the functional one. Called after every change. */
+function writeSidecar(dbPath: string): void {
+  const sidecar = path.join(path.dirname(dbPath), `${path.basename(dbPath, ".sqlite")}.md`);
+  writeFileSync(sidecar, renderSidecar(dbPath));
+}
+
 /** Accepted by every command. */
 const GLOBAL_FLAGS = ["--pretty", "--help"];
 
@@ -381,8 +468,9 @@ if (command === "initialize") {
     insertField.run(field, profile[field] as string);
   }
   db.close();
+  writeSidecar(dbPath);
 
-  succeed({ graph: namespace, path: dbPath, profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
+  succeed({ graph: namespace, path: dbPath, sidecar: path.join(dir, `${namespace}.md`), profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
 }
 
 if (command === "introduce") {
