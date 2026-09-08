@@ -7,6 +7,15 @@ export interface ScenarioDefinition {
   sandbox?: {
     /** Directory copied into the fresh temp sandbox (resolved relative to the eval file's cwd if relative). */
     fixtures?: string;
+    /**
+     * Run in this existing directory instead of creating a fresh temp sandbox.
+     *
+     * The Walking Skeleton requires a *fresh thread* — no shared context — against
+     * the *same* working directory, which is a second scenario over the first's
+     * sandbox. Pass the first run's `ScenarioResult.sandboxPath` here. The
+     * directory is not cleared, and fixtures (if also given) are copied in on top.
+     */
+    reuse?: string;
   };
   agent: {
     model: string;
@@ -146,6 +155,8 @@ export interface ScenarioResult {
   gates: GateResult[];
   stats: Stats;
   artifactsDir: string;
+  /** The directory the session ran in. Feed to a later scenario's `sandbox.reuse`. */
+  sandboxPath: string;
   transcript: CapturedMessage[];
   turns: TurnView[];
   gradeVerdict?: GradeVerdict;

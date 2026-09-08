@@ -1,0 +1,4 @@
+# The POSIX shim must keep LF endings — CRLF in a shebang line makes the whole file
+# unrunnable ("bad interpreter: /bin/sh^M"), which would surface as a mysterious eval
+# failure on any non-Windows machine.
+bin/cog-graphs text eol=lf

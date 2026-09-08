@@ -7,6 +7,9 @@
   "scripts": {
     "test": "bun test testing/tests",
     "eval:smoke": "bun run testing/evals/eval_smoke.ts",
+    "eval:skeleton": "bun run testing/evals/eval_walking_skeleton.ts",
+    "eval:zero-priming": "bun run testing/evals/eval_zero_priming.ts",
+    "eval:errors": "bun run testing/evals/eval_error_next_steps.ts",
     "verify:claims": "bun run testing/harness/verify-claims.ts",
     "typecheck": "tsc --noEmit"
   },

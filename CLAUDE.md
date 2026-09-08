@@ -55,3 +55,38 @@ Flagging that is part of the job, not an interruption of it.
 - **The CLI is the UX, and its user is an AI agent.** Self-documenting, self-contained,
   token-efficient, legible errors. An agent with zero priming should reach fluency from
   `--help` alone.
+
+## The build loop (v0.3.1)
+
+State lives in the repo, not in the conversation. To pick up cold: `bun test` shows what
+is left, `git log --oneline` shows what is done. Nothing else needs to be remembered.
+
+1. Run `bun test`. Take the first red case, or a tightly coupled group of them.
+2. Make it green without breaking a green one.
+3. Commit, naming the case: `DE-11: reject add-item on an existing entity`.
+4. Repeat.
+
+The suite is ordered in Walking Skeleton order, so "the first red case" always builds
+the system in the order an Operator meets it.
+
+- **`testing/` is frozen.** Tests and evals are the spec's second layer — including
+  `testing/tests/contract.ts`, which is where the CLI surface, exit codes, and artifact
+  shape are pinned. If a case looks wrong, append to `testing/DISPUTES.md`, leave it red,
+  and move on. Ethan resolves it; an open dispute blocks closure. Read that file's
+  preamble before raising one.
+- The engine goes at `engine/main.ts` (override with `COG_CLI_ENTRY`). `bin/cog-graphs`
+  already shims it onto PATH, which is how the evals invoke it. Until that file exists
+  every CLI test fails with an explicit "expected RED" message — that is the correct
+  day-one state, not a broken suite.
+- **Cheap layer constantly, paid layer deliberately.** `bun test` is free and instant.
+  Every `eval:*` script spends real money and minutes on a live agent; run one when its
+  deterministic dependencies are green, never to check progress.
+- **Do not enable SQLite WAL.** It leaves `-wal`/`-shm` files beside the database and
+  breaks IN-6. One short-lived process per command needs no concurrency. Revisit only
+  when concurrent Operators become real — and revisit IN-6 with it, not instead of it.
+- Treat `--help` output as a deliverable. DE-2 and DE-5 grade it, and RU-3 asserts an
+  agent with no primer reaches a working graph from it alone.
+
+Closure, per the doc's Roadmap: all v0.3.1 cases taken red → green in good faith and
+passing; the Walking Skeleton passing through the eval harness. The conclusive milestone
+is Ethan's own manual pass — not yours to declare.

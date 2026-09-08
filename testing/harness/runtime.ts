@@ -111,8 +111,11 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
   const gates: GateResult[] = [];
   let fatalError: string | undefined;
 
-  // Fresh sandbox.
-  const sandbox = await mkdtemp(path.join(tmpdir(), `cog-eval-${def.name}-`));
+  // Fresh sandbox, unless the scenario is deliberately continuing in an existing
+  // directory (a fresh thread over the same cwd — see ScenarioDefinition.sandbox.reuse).
+  const sandbox = def.sandbox?.reuse
+    ? path.resolve(def.sandbox.reuse)
+    : await mkdtemp(path.join(tmpdir(), `cog-eval-${def.name}-`));
   const configDir = path.join(sandbox, CONFIG_DIR_NAME);
   await mkdir(configDir, { recursive: true });
   if (def.sandbox?.fixtures) {
@@ -258,6 +261,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     gates,
     stats,
     artifactsDir: "",
+    sandboxPath: sandbox,
     transcript: transcript.messages,
     turns: transcript.turns,
     gradeVerdict,

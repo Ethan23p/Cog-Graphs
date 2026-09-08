@@ -186,7 +186,7 @@ transcript — no API spend, no network. To refresh the transcript first (~$0.02
 
 | ID | Claim | Verification (once available) |
 |---|---|---|
-| **U1** | `plugins` + `skills` load correctly **under `settingSources: []`**. Isolation blocks skills *discovered* from user/project settings; these are passed explicitly, so they should still load. Not yet exercised. | Once the Cog-Graphs plugin exists: a scenario with `plugins: [{type:'local', path: pluginDir}], skills: 'all'` and a turn whose gate asserts the agent invoked the skill (or ran `introduce --interface-skill`). Until then, treat the plumbing as untested wiring. Cheap early check: an eval whose first turn asks the agent to list its available skills. |
+| **U1** | `plugins` + `skills` load correctly **under `settingSources: []`**. Isolation blocks skills *discovered* from user/project settings; these are passed explicitly, so they should still load. Not yet exercised. | **The check now exists**: `testing/evals/eval_walking_skeleton.ts` loads the plugin and its turn-1 gate asserts the agent reached the CLI via `introduce` — which it can only learn from the skill. It stays unverified until `plugin/` exists (the eval refuses to run without it, by design). If that gate fails while the same scenario passes with a `systemPrompt` preamble, U1 is the cause, not the engine. |
 | **U2** | ~~E1–E5 unverified on 0.3.251.~~ **CLOSED 2026-08-28**: smoke eval passed on 0.3.251 (4/4 gates, $0.038, 18s) and `verify:claims` returned 4/4 on the resulting transcript. E1–E5 now hold at both 0.3.214 and 0.3.251. | `bun run eval:smoke && bun run verify:claims` — one live run (~$0.04, ~20s) re-settles all five. Repeat after any SDK bump; E1–E4 are precisely the claims a bump can silently break, which is why they are executable rather than prose. |
 
 ### Gotchas for eval authors
@@ -228,12 +228,26 @@ that `verify:claims` reads for **E1–E4**.
 
 ## Deliberately deferred
 
-- The walking-skeleton eval definition + its fixtures
-- Cog-Graph-correctness helper library (sqlite EAV introspection) — belongs with the
-  eval, not the runtime
-- Transcript-grading rubric content (runtime provides only the `grade()` slot)
 - Cost/cadence tagging taxonomy for test cases
-- pass@k / trial repetition (the runtime's single-run contract keeps the door open)
+
+### Closed since this design was written (2026-09-08)
+
+- **The walking-skeleton eval** — `testing/evals/eval_walking_skeleton.ts`.
+- **Cog-Graph introspection helpers** — they landed in `testing/tests/helpers.ts` and
+  are shared by both layers, so a gate and a unit test cannot disagree about what the
+  artifact holds.
+- **Rubric content** — `testing/evals/eval-support.ts::judgeRubrics`, scoring each
+  criterion by id so a failure names which rubric failed.
+- **pass^k repetition** — `testing/evals/eval_zero_priming.ts` runs `runScenario` k
+  times and requires all k. The runtime's single-run contract was indeed enough; no
+  runtime change was needed.
+
+### Added since (one runtime change)
+
+- **`sandbox.reuse`** — a scenario can run in an existing directory instead of a fresh
+  temp one, and `ScenarioResult.sandboxPath` reports where it ran. The Walking Skeleton
+  requires a *fresh thread over the same cwd*, which is a second session, not a further
+  turn; without this the eval would have had to reach around the runtime.
 
 ## Progress & partial artifacts
 

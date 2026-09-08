@@ -1,0 +1,8 @@
+#!/bin/sh
+# The binary as an Operator meets it. Evals prepend this directory to PATH so the
+# in-loop agent types `cog-graphs …` rather than `bun path/to/main.ts …` — the
+# latter would test a surface no real Operator ever sees.
+#
+# COG_CLI_ENTRY overrides the entry point, matching testing/tests/helpers.ts.
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec bun "${COG_CLI_ENTRY:-$DIR/engine/main.ts}" "$@"
