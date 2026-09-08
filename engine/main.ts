@@ -188,14 +188,52 @@ const HELP: Record<string, Help> = {
   },
 };
 
+/** Accepted by every command. */
+const GLOBAL_FLAGS = ["--pretty", "--help"];
+
+const EXIT = { OK: 0, USAGE: 1 } as const;
+
 function succeed(payload: Record<string, unknown>): never {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
-  process.exit(0);
+  process.exit(EXIT.OK);
+}
+
+/**
+ * Errors go to stderr as JSON so an Operator can pipe stdout into a parser without a
+ * failure corrupting the parse, and every one of them carries code / message / next_step
+ * — an error an agent cannot act on just costs it a turn.
+ */
+function fail(status: number, code: string, message: string, next_step: string): never {
+  process.stderr.write(`${JSON.stringify({ code, message, next_step })}\n`);
+  process.exit(status);
 }
 
 if (command && flags.has("--help")) {
   const help = HELP[command];
   if (help) succeed({ command, ...help });
+}
+
+// Unknown options are rejected before anything else runs, so a typo never half-executes.
+//
+// The error deliberately does not echo the offending option. `--managed` is a real flag
+// in a later version and is withheld from this one entirely, and echoing an unknown
+// option would confirm its spelling to an Operator who guessed it. Listing what *is*
+// recognized says nothing about what is withheld and is the more useful half anyway.
+if (command && HELP[command]) {
+  const recognized = new Set([
+    ...Object.keys(HELP[command].required),
+    ...Object.keys(HELP[command].optional),
+    ...GLOBAL_FLAGS,
+  ]);
+  for (const token of argv.slice(1)) {
+    if (!token.startsWith("--") || recognized.has(token)) continue;
+    fail(
+      EXIT.USAGE,
+      "unknown_option",
+      `${command} does not recognize that option. It accepts: ${[...recognized].join(", ")}.`,
+      `Run 'cog-graphs ${command} --help' for the usage and a runnable example.`,
+    );
+  }
 }
 
 if (command === "introduce") {

@@ -27,3 +27,34 @@ describe("DE-3 — --managed appears in no user-facing output", () => {
     });
   }
 });
+
+describe("DE-4 — --managed supplied on input is rejected", () => {
+  // Silently accepting the flag would let an Operator believe they are driving a
+  // use-pattern that does not exist yet, and the artifact would carry no trace of the
+  // misunderstanding. Rejecting it as an unrecognized option is the honest answer: it
+  // genuinely is not part of this version's grammar.
+  //
+  // DE-3 and DE-4 pull against each other on one point, and the resolution is worth
+  // stating. DE-3 forbids the string from "any error output", and the reflex for an
+  // unknown-option error is to echo the offender. That reflex loses here: echoing would
+  // confirm the flag's spelling to an Operator who guessed it. So the error names the
+  // options that *are* recognized instead, which is both silent about the withheld one
+  // and more actionable than an echo.
+  for (const command of COMMANDS) {
+    test(`${command.name} rejects it without naming it`, () => {
+      const cwd = makeSandbox();
+
+      const r = runCli([command.name, WITHHELD_FLAG], { cwd });
+
+      expect(r.exitCode).toBe(EXIT.USAGE);
+      const error = JSON.parse(r.stderr);
+      expect(error.code).toBe("unknown_option");
+      expect(error.message.trim().length).toBeGreaterThan(0);
+      expect(error.next_step.trim().length).toBeGreaterThan(0);
+      // The recognized options are the actionable half — this is what replaces the echo.
+      for (const flag of [...command.required, ...command.optional]) {
+        expect(r.stderr).toContain(flag);
+      }
+    });
+  }
+});
