@@ -8,6 +8,7 @@ import { norm } from "./helpers";
 import { sidecarFile } from "./contract";
 import { readProfile } from "./helpers";
 import { PROFILE_FIELDS } from "./contract";
+import { readConvention } from "./helpers";
 
 /** A graph in a fresh sandbox, ready for the invariants to be read off. */
 function spawnGraph(namespace = "invariants") {
@@ -83,5 +84,31 @@ describe("IN-3 — the profile is present and intact inside the artifact", () =>
     // Intact also means nothing extra crept in: a field in the artifact that the schema
     // does not declare is a field nobody can account for.
     expect(Object.keys(stored).sort()).toEqual([...PROFILE_FIELDS].sort());
+  });
+});
+
+describe("IN-8 — a convention is present in the artifact after initialize", () => {
+  // "It lives in the artifact, not the engine" is the half that needs teeth. A canned
+  // default baked into the binary would satisfy "present and non-empty" while defeating
+  // the entire idea: the doc has the convention improvised per graph by the agent that
+  // knows the use-case, and amended over the graph's life. So the seed is a string only
+  // this profile could have supplied, and the case looks for exactly it.
+  test("carries the seed the profile supplied, not an engine default", () => {
+    const cwd = makeSandbox();
+    const seed = "Every entity carries a status; ratings are 1-5 integers; sources are URLs.";
+    const profilePath = path.join(cwd, "profile.yml");
+    writeProfileYml(
+      profilePath,
+      { namespace: "in8", "use-pattern": "manual", description: "Convention seeding." },
+      seed,
+    );
+
+    const r = runCli(["initialize", "--profile", profilePath], { cwd });
+    expect(r.exitCode).toBe(EXIT.OK);
+
+    const convention = readConvention(graphFile(cwd, "in8"));
+    expect(convention.length).toBeGreaterThan(0);
+    expect(convention.join("\n").trim().length).toBeGreaterThan(0);
+    expect(convention).toContain(seed);
   });
 });

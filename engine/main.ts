@@ -438,6 +438,11 @@ if (command === "initialize") {
 
   const doc = (document ?? {}) as Record<string, unknown>;
   const profile = (doc.profile ?? {}) as Record<string, unknown>;
+  // The convention is required at initialize, not optional. The doc has it "seeded upon
+  // initialization" and treats it as always present when an agent touches a graph, so a
+  // graph that starts without one starts with the discipline already broken — and there
+  // is no moment later at which anyone is prompted to supply it.
+  const seedConvention = typeof doc.convention === "string" ? doc.convention.trim() : "";
   const missing = PROFILE_FIELDS.filter((field) => typeof profile[field] !== "string");
   if (missing.length > 0) {
     fail(
@@ -445,6 +450,15 @@ if (command === "initialize") {
       "profile_incomplete",
       `The profile is missing: ${missing.join(", ")}.`,
       `Add the missing field(s) under 'profile:' in ${resolved}. Every profile needs: ${PROFILE_FIELDS.join(", ")}.`,
+    );
+  }
+
+  if (seedConvention.length === 0) {
+    fail(
+      EXIT.USAGE,
+      "convention_missing",
+      "The profile file carries no 'convention:' to seed the graph with.",
+      `Add a 'convention:' string to ${resolved} describing the shape of the data you are about to store — the attributes you will actually use, and what their values mean.`,
     );
   }
 
@@ -467,6 +481,10 @@ if (command === "initialize") {
   for (const field of PROFILE_FIELDS) {
     insertField.run(field, profile[field] as string);
   }
+  db.prepare("INSERT INTO convention (text, recorded_at) VALUES (?, ?)").run(
+    seedConvention,
+    new Date().toISOString(),
+  );
   db.close();
   writeSidecar(dbPath);
 
