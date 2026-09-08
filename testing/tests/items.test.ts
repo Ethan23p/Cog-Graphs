@@ -184,3 +184,24 @@ describe("DE-13 — modify-item changes what it names and nothing else", () => {
     expect(queried.items).toEqual([expected]);
   });
 });
+
+describe("DE-14 — the sidecar reflects the modification", () => {
+  // The distinct failure from DE-12: an engine can re-derive on add and not on modify,
+  // and then the sidecar is not merely stale but actively wrong — it asserts an old
+  // value with the same confidence as a current one. The superseded value going away is
+  // the half that catches an append-only renderer.
+  test("shows the new value and no longer shows the old one", () => {
+    const { cwd, namespace, sidecar } = spawnGraph({ namespace: "de14" });
+    runCli(["add-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=backlog"], {
+      cwd,
+    });
+
+    runCli(["modify-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=completed"], {
+      cwd,
+    });
+
+    const text = readSidecar(sidecar);
+    expect(text).toContain("completed");
+    expect(text).not.toContain("backlog");
+  });
+});
