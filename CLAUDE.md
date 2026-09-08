@@ -72,8 +72,14 @@ disagree, the doc wins and the extract is stale.
 2. Write that one case as a test. Run it. **Watch it fail** — a case that has never been
    red has not been shown to test anything.
 3. Write the least engine code that makes it pass, without breaking a green case.
-4. `bun run guard && bun test`, then commit, naming the case:
+4. `bun run check` — typecheck, guard, tests — then commit, naming the case:
    `DE-11: reject add-item on an existing entity`.
+
+   Typecheck is in that gate for a reason, not for tidiness. `bun test` cannot see a
+   whole class of defect that `tsc` catches instantly: a missing key on the exit-code
+   map reads as `undefined`, `process.exit(undefined)` exits **0**, and the command
+   prints a perfectly good error while telling the shell it succeeded. Every case that
+   asserts an exit code goes green against that. Run the gate, not just the tests.
 
 Do not write the next case's test before finishing this slice. Writing the suite ahead
 of the engine pins imagined behavior: shapes get frozen for commands nobody has written,

@@ -357,7 +357,24 @@ function realpathish(p: string): string {
 /** Accepted by every command. */
 const GLOBAL_FLAGS = ["--pretty", "--help"];
 
-const EXIT = { OK: 0, USAGE: 1 } as const;
+/**
+ * The exit-code alphabet, verbatim from the doc:
+ * `0 ok ; 1 usage/unknown option ; 2 not found ; 3 already exists ; 4 partial ingestion ;
+ *  5 ambiguous target ; 6 = internal`
+ *
+ * Whole, not as-needed. A partial map is worse than none: `EXIT.ALREADY_EXISTS` on an
+ * object that does not define it is `undefined`, `process.exit(undefined)` exits 0, and
+ * the command reports a failure on stderr while telling the shell it succeeded.
+ */
+const EXIT = {
+  OK: 0,
+  USAGE: 1,
+  NOT_FOUND: 2,
+  ALREADY_EXISTS: 3,
+  PARTIAL: 4,
+  AMBIGUOUS: 5,
+  INTERNAL: 6,
+} as const;
 
 function succeed(payload: Record<string, unknown>): never {
   process.stdout.write(`${JSON.stringify(payload)}\n`);

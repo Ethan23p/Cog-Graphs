@@ -96,3 +96,32 @@ describe("DE-12 — the sidecar enumerates the items after the add", () => {
     expect(text).toContain("backlog");
   });
 });
+
+describe("DE-11 — add-item on an existing entity", () => {
+  // The two dangerous readings of a repeat add are "quietly overwrite" and "quietly
+  // merge", and both lose data the Operator did not agree to lose. Refusing keeps
+  // add-item and modify-item from doing each other's job, which is what lets an Operator
+  // trust either one without checking first.
+  test("errors, leaves the existing item untouched, and points at modify item", () => {
+    const { cwd, namespace, db } = spawnGraph({ namespace: "de11" });
+    runCli(
+      ["add-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=backlog"],
+      { cwd },
+    );
+
+    const r = runCli(
+      ["add-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=completed"],
+      { cwd },
+    );
+
+    expect(r.exitCode).toBe(EXIT.ALREADY_EXISTS);
+    const error = JSON.parse(r.stderr);
+    expect(error.code).toBe("entity_exists");
+    expect(error.message).toContain("Tunic");
+    // "Points to modify item" is the actionable half — an Operator who is told only
+    // that the add failed has to work out the alternative themselves.
+    expect(error.next_step).toContain("modify-item");
+    // A refusal that half-applied would be worse than either quiet reading.
+    expect(readItems(db)).toEqual([{ entity: "Tunic", attributes: { status: "backlog" } }]);
+  });
+});
