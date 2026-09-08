@@ -205,3 +205,26 @@ describe("DE-14 — the sidecar reflects the modification", () => {
     expect(text).not.toContain("backlog");
   });
 });
+
+describe("DE-15 — modify-item on a non-existent entity", () => {
+  // The mirror of DE-11, and the reason both exist: an Operator working from memory in a
+  // cold thread will reach for the wrong one of these two commands, and the graph should
+  // hand them the right one rather than failing opaquely or — far worse — quietly
+  // creating an entity nobody meant to create. The silent create is the dangerous
+  // version: it looks like success and leaves a near-duplicate of a real item behind.
+  test("errors, creates nothing, and points at add item", () => {
+    const { cwd, namespace, db } = spawnGraph({ namespace: "de15" });
+
+    const r = runCli(
+      ["modify-item", "--graph", namespace, "--entity", "Hollow Knight", "--attr", "status=playing"],
+      { cwd },
+    );
+
+    expect(r.exitCode).toBe(EXIT.NOT_FOUND);
+    const error = JSON.parse(r.stderr);
+    expect(error.code).toBe("entity_not_found");
+    expect(error.message).toContain("Hollow Knight");
+    expect(error.next_step).toContain("add-item");
+    expect(readItems(db)).toEqual([]);
+  });
+});
