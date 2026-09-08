@@ -6,6 +6,8 @@ import { EXIT, graphFile } from "./contract";
 import { readFileSync } from "node:fs";
 import { norm } from "./helpers";
 import { sidecarFile } from "./contract";
+import { readProfile } from "./helpers";
+import { PROFILE_FIELDS } from "./contract";
 
 /** A graph in a fresh sandbox, ready for the invariants to be read off. */
 function spawnGraph(namespace = "invariants") {
@@ -61,5 +63,25 @@ describe("IN-2 — the inspectable face is a .md beside the .sqlite", () => {
     const text = norm(readFileSync(sidecar, "utf8"));
     expect(text.trim().length).toBeGreaterThan(0);
     expect(text).toContain(namespace);
+  });
+});
+
+describe("IN-3 — the profile is present and intact inside the artifact", () => {
+  // Iterating PROFILE_FIELDS rather than naming three fields is the point of this case.
+  // The doc says the profile's configuration options are "namespace, use-pattern,
+  // description" and then "probably more - TBD", so a case that hardcodes the current
+  // three would go quietly insensitive the moment a fourth arrives — it would keep
+  // passing while asserting nothing about the field that was actually added.
+  test("carries every field the schema declares, non-empty", () => {
+    const { db } = spawnGraph("in3");
+
+    const stored = readProfile(db);
+    for (const field of PROFILE_FIELDS) {
+      expect(Object.keys(stored)).toContain(field);
+      expect(stored[field]?.trim().length ?? 0).toBeGreaterThan(0);
+    }
+    // Intact also means nothing extra crept in: a field in the artifact that the schema
+    // does not declare is a field nobody can account for.
+    expect(Object.keys(stored).sort()).toEqual([...PROFILE_FIELDS].sort());
   });
 });
