@@ -13,5 +13,5 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["bun"]
   },
-  "include": ["testing/**/*.ts"]
+  "include": ["testing/**/*.ts", "engine/**/*.ts"]
 }

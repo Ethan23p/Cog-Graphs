@@ -65,6 +65,15 @@ export const GLOBAL_FLAGS = ["--pretty", "--help"] as const;
  */
 export const WITHHELD_FLAG = "--managed";
 
+/**
+ * `introduce` answers as one of two things, and an Operator must be able to tell which
+ * without guessing: the doc has it return an introduction to *this instantiation*,
+ * "unless there's no instantiation to be found, in which case it introduces this system
+ * and how to use it". Both are the root of the self-documentation; they are not
+ * interchangeable, so the payload names its scope.
+ */
+export const INTRO_SCOPE = { SYSTEM: "system", INSTANCE: "instance" } as const;
+
 /** Functional face: `<namespace>.sqlite` in the target directory. */
 export const graphFile = (dir: string, ns: string) => path.join(dir, `${ns}.sqlite`);
 /** Inspectable face: derived `<namespace>.md`, beside the functional face (IN-2). */

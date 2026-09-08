@@ -59,12 +59,16 @@ Flagging that is part of the job, not an interruption of it.
 ## The build loop (v0.3.1)
 
 State lives in the repo, not in the conversation. To pick up cold: `git log --oneline`
-shows the cases already green, `bun test` shows they still are, and the doc's Testing &
-Evaluation section lists every case there is. Nothing else needs to be remembered.
+shows the cases already green, `bun test` shows they still are, and `testing/CASES.md`
+lists every case there is, in slice order. Nothing else needs to be remembered.
+
+`CASES.md` is a local extract for navigation; the doc is still the authority, and one
+full ingestion at the start of a session is the intended way to hold it. If the two ever
+disagree, the doc wins and the extract is stale.
 
 **One slice at a time, vertically.** A slice is one case, start to finish:
 
-1. Pick the next case from the doc, in Walking Skeleton order.
+1. Pick the next case from `testing/CASES.md`, in slice order.
 2. Write that one case as a test. Run it. **Watch it fail** — a case that has never been
    red has not been shown to test anything.
 3. Write the least engine code that makes it pass, without breaking a green case.
