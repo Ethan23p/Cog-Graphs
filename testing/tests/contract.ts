@@ -99,3 +99,22 @@ export const ERROR_STREAM = "stderr";
 
 /** Fields every non-zero exit must carry (IN-11); RU-7 judges whether next_step is worth reading. */
 export const ERROR_FIELDS = ["code", "message", "next_step"] as const;
+
+/**
+ * The commands the Walking Skeleton scenario actually walks through, in order:
+ * spawn an instantiation, query it empty, add a couple items, query them, then — from a
+ * cold thread — modify a couple items and query again. `introduce` is the door the
+ * cold thread comes in by.
+ *
+ * DE-2 asserts the `--interface-skill` primer names every one of these. It is scoped to
+ * the scenario rather than to COMMANDS: `import`, `remove-item` and `convention` are
+ * real capabilities but the skeleton does not walk them, and padding this list would
+ * make DE-2 assert something the doc does not.
+ */
+export const WALKING_SKELETON_COMMANDS = [
+  "introduce",
+  "initialize",
+  "query",
+  "add-item",
+  "modify-item",
+] as const;
