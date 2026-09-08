@@ -55,3 +55,46 @@ Flagging that is part of the job, not an interruption of it.
 - **The CLI is the UX, and its user is an AI agent.** Self-documenting, self-contained,
   token-efficient, legible errors. An agent with zero priming should reach fluency from
   `--help` alone.
+
+## The build loop (v0.3.1)
+
+State lives in the repo, not in the conversation. To pick up cold: `git log --oneline`
+shows the cases already green, `bun test` shows they still are, and the doc's Testing &
+Evaluation section lists every case there is. Nothing else needs to be remembered.
+
+**One slice at a time, vertically.** A slice is one case, start to finish:
+
+1. Pick the next case from the doc, in Walking Skeleton order.
+2. Write that one case as a test. Run it. **Watch it fail** — a case that has never been
+   red has not been shown to test anything.
+3. Write the least engine code that makes it pass, without breaking a green case.
+4. `bun run guard && bun test`, then commit, naming the case:
+   `DE-11: reject add-item on an existing entity`.
+
+Do not write the next case's test before finishing this slice. Writing the suite ahead
+of the engine pins imagined behavior: shapes get frozen for commands nobody has written,
+and the cases go quietly insensitive to what the system actually does.
+
+- **A green case is frozen.** `testing/tests/*.test.ts`, `testing/tests/contract.ts` and
+  `testing/evals/*.ts` are append-only — add cases freely, never edit a landed one.
+  `bun run guard` enforces this by rejecting removed lines; it is not a formality, it is
+  the only thing keeping the second layer of the spec honest. If a green case looks
+  wrong, append to `testing/DISPUTES.md`, leave it alone, and carry on. Ethan resolves
+  disputes; an open dispute blocks closure.
+- `helpers.ts` and everything under `testing/harness/` are **not** frozen. They are
+  mechanism, not spec — add a helper or a runtime feature when a slice needs one.
+- The engine goes at `engine/main.ts` (override with `COG_CLI_ENTRY`). Until that file
+  exists every CLI test fails with an explicit "expected RED" message — the correct
+  day-one state, not a broken suite.
+- **Cheap layer constantly, paid layer deliberately.** `bun test` is free and instant.
+  Every `eval:*` script spends real money and minutes on a live agent; run one when its
+  deterministic dependencies are green, never to check progress.
+- **Do not enable SQLite WAL.** It leaves `-wal`/`-shm` files beside the database and
+  breaks IN-6. One short-lived process per command needs no concurrency. Revisit only
+  when concurrent Operators become real — and revisit IN-6 with it, not instead of it.
+- Treat `--help` output as a deliverable. DE-2 and DE-5 grade it, and RU-3 asserts an
+  agent with no primer reaches a working graph from it alone.
+
+Closure, per the doc's Roadmap: all v0.3.1 cases taken red → green in good faith and
+passing; the Walking Skeleton passing through the eval harness. The conclusive milestone
+is Ethan's own manual pass — not yours to declare.

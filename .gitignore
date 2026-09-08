@@ -9,3 +9,6 @@ testing/artifacts/
 # git worktrees — committing one leaves a gitlink with no .gitmodules entry,
 # which breaks any checkout that runs `submodule update`
 .claude/worktrees/
+
+# test sandboxes (helpers.ts writes here); never part of the repo
+testing/.scratch/

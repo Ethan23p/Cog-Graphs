@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test testing/tests",
+    "guard": "bun run testing/guard-frozen.ts",
     "eval:smoke": "bun run testing/evals/eval_smoke.ts",
     "verify:claims": "bun run testing/harness/verify-claims.ts",
     "typecheck": "tsc --noEmit"
