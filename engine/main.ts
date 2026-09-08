@@ -741,6 +741,48 @@ if (command === "modify-item") {
   succeed({ graph: namespace, entity, attributes, modified: true });
 }
 
+if (command === "remove-item") {
+  const { namespace, dbPath } = resolveGraph();
+  const entity = optionValue("--entity");
+  if (!entity) {
+    fail(
+      EXIT.USAGE,
+      "missing_value",
+      "--entity needs the name of the entity to remove.",
+      `Name it: cog-graphs remove-item --graph ${namespace} --entity <name>`,
+    );
+  }
+
+  const db = new Database(dbPath);
+  const existing = db.query("SELECT id FROM entity WHERE name = ?").get(entity) as
+    | { id: number }
+    | undefined;
+  if (!existing) {
+    const present = (db.query("SELECT name FROM entity ORDER BY name").all() as { name: string }[])
+      .map((e) => e.name);
+    db.close();
+    fail(
+      EXIT.NOT_FOUND,
+      "entity_not_found",
+      `'${entity}' is not in ${namespace}, so there is nothing to remove.`,
+      present.length > 0
+        ? `Check the name against what is there — ${namespace} holds: ${present.join(", ")}. 'cog-graphs query --graph ${namespace}' lists them with their attributes.`
+        : `${namespace} is empty. Add something first: cog-graphs add-item --graph ${namespace} --entity <name>`,
+    );
+  }
+
+  // The attribute rows go with the entity. Leaving them would orphan data that nothing
+  // can retrieve and quietly break IN-1 — and "removed" that leaves the item's data
+  // behind is not removed. Explicit rather than relying on ON DELETE CASCADE, which
+  // SQLite only honors when foreign keys are switched on.
+  db.prepare("DELETE FROM eav WHERE entity_id = ?").run(existing.id);
+  db.prepare("DELETE FROM entity WHERE id = ?").run(existing.id);
+  db.close();
+  writeSidecar(dbPath);
+
+  succeed({ graph: namespace, entity, removed: true });
+}
+
 if (command === "query") {
   const { namespace, dbPath } = resolveGraph();
   const db = new Database(dbPath, { readonly: true });

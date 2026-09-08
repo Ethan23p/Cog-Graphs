@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readItems, runCli, spawnGraph } from "./helpers";
 import { EXIT } from "./contract";
 import { readSidecar } from "./helpers";
+import { artifactIntegrity } from "./helpers";
 
 describe("DE-9 — what add-item stores, read straight from the .sqlite", () => {
   // Read from the database rather than through `query`, deliberately. The doc's promise
@@ -226,5 +227,37 @@ describe("DE-15 — modify-item on a non-existent entity", () => {
     expect(error.message).toContain("Hollow Knight");
     expect(error.next_step).toContain("add-item");
     expect(readItems(db)).toEqual([]);
+  });
+});
+
+describe("DE-16 — remove-item removes the targeted item", () => {
+  // Two things are being asserted and only one of them is obvious. The item is gone —
+  // and the *other* items are not. Removal is the operation where a slightly wrong
+  // predicate does the most damage, and a graph with one entity in it cannot tell a
+  // correct delete from a delete-everything, so the case keeps a bystander around.
+  //
+  // Attribute rows go with it. Orphaned rows would leave IN-1 to catch quietly later,
+  // and "removed" that leaves the item's data behind is not removed.
+  test("the item and its pairs go; everything else stays", () => {
+    const { cwd, namespace, db } = spawnGraph({ namespace: "de16" });
+    runCli(
+      ["add-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=abandoned"],
+      { cwd },
+    );
+    runCli(
+      ["add-item", "--graph", namespace, "--entity", "Outer Wilds", "--attr", "status=playing"],
+      { cwd },
+    );
+
+    const r = runCli(["remove-item", "--graph", namespace, "--entity", "Tunic"], { cwd });
+
+    expect(r.exitCode).toBe(EXIT.OK);
+    const survivor = { entity: "Outer Wilds", attributes: { status: "playing" } };
+    expect(readItems(db)).toEqual([survivor]);
+    const queried = JSON.parse(runCli(["query", "--graph", namespace], { cwd }).stdout);
+    expect(queried.items).toEqual([survivor]);
+    expect(queried.count).toBe(1);
+    // No attribute row may outlive its entity.
+    expect(artifactIntegrity(db).orphanRows).toBe(0);
   });
 });
