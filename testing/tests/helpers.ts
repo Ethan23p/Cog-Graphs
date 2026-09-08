@@ -147,6 +147,51 @@ export function makeOrdinarySandbox(prefix = "cog-test-"): string {
   return mkdtempSync(path.join(scratch, prefix));
 }
 
+/**
+ * A graph spawned in a fresh sandbox, ready to be operated on.
+ *
+ * Every case past initialize needs one and none of them are testing initialize, so the
+ * setup lives here rather than being re-typed per file. It throws rather than returning
+ * a failure: a case that silently proceeds against a graph that was never created would
+ * report a confusing failure far from the real one.
+ */
+export function spawnGraph(
+  options: {
+    namespace?: string;
+    description?: string;
+    convention?: string;
+    cwd?: string;
+  } = {},
+): { cwd: string; namespace: string; db: string; sidecar: string } {
+  const namespace = options.namespace ?? "graph";
+  const cwd = options.cwd ?? makeSandbox();
+  const profilePath = path.join(cwd, `${namespace}.profile.yml`);
+  writeProfileYml(
+    profilePath,
+    {
+      namespace,
+      "use-pattern": "manual",
+      description: options.description ?? `A graph named ${namespace}.`,
+    },
+    options.convention ?? "Every entity carries a status.",
+  );
+  const r = runCli(["initialize", "--profile", profilePath], { cwd });
+  if (r.exitCode !== 0) {
+    throw new Error(`initialize failed (${r.exitCode}): ${r.stderr || r.stdout}`);
+  }
+  return {
+    cwd,
+    namespace,
+    db: path.join(cwd, `${namespace}.sqlite`),
+    sidecar: path.join(cwd, `${namespace}.md`),
+  };
+}
+
+/** The sidecar's current text, LF-normalized. Derived, so always read fresh. */
+export function readSidecar(sidecarPath: string): string {
+  return norm(readFileSync(sidecarPath, "utf8"));
+}
+
 /** LF-normalize for content comparison (see DESIGN.md G1). */
 export function norm(s: string): string {
   return s.replaceAll("\r\n", "\n");

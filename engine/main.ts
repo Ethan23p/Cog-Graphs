@@ -5,7 +5,7 @@
 // the process boundary is the whole contract.
 
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 
@@ -529,6 +529,87 @@ if (command === "initialize") {
   writeSidecar(dbPath);
 
   succeed({ graph: namespace, path: dbPath, sidecar: path.join(dir, `${namespace}.md`), warnings, profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
+}
+
+/**
+ * Find the graph a command is about.
+ *
+ * Naming it is always allowed; omitting it is a convenience that only holds while the
+ * answer is unambiguous. When it is not, the engine says what it found rather than
+ * picking — an Operator who meant graph A and silently got graph B has no way to notice.
+ */
+function resolveGraph(): { namespace: string; dbPath: string } {
+  const dir = process.cwd();
+  const requested = optionValue("--graph");
+  if (requested) {
+    const dbPath = path.join(dir, `${requested}.sqlite`);
+    if (existsSync(dbPath)) return { namespace: requested, dbPath };
+    const present = listGraphs(dir);
+    fail(
+      EXIT.NOT_FOUND,
+      "graph_not_found",
+      `No graph named '${requested}' in ${dir}.`,
+      present.length > 0
+        ? `This directory holds: ${present.join(", ")}. Use one of those, or create '${requested}' with cog-graphs initialize --profile <file.yml>.`
+        : `This directory holds no graphs at all. Create one with cog-graphs initialize --profile <file.yml>.`,
+    );
+  }
+
+  const present = listGraphs(dir);
+  if (present.length === 1) return { namespace: present[0], dbPath: path.join(dir, `${present[0]}.sqlite`) };
+  if (present.length === 0) {
+    fail(
+      EXIT.NOT_FOUND,
+      "no_graph_here",
+      `No graph in ${dir}.`,
+      "Create one with cog-graphs initialize --profile <file.yml>, or run the command from the directory that holds the graph.",
+    );
+  }
+  fail(
+    EXIT.AMBIGUOUS,
+    "ambiguous_graph",
+    `${dir} holds more than one graph: ${present.join(", ")}.`,
+    `Name the one you mean with --graph, e.g. --graph ${present[0]}.`,
+  );
+}
+
+/** Namespaces of the graphs sitting in a directory, sorted. */
+function listGraphs(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".sqlite"))
+    .map((name) => name.slice(0, -".sqlite".length))
+    .sort();
+}
+
+/** Every entity with its attribute/value pairs, entity name ascending. */
+function readItems(db: Database): { entity: string; attributes: Record<string, string> }[] {
+  const entities = db.query("SELECT id, name FROM entity ORDER BY name").all() as {
+    id: number;
+    name: string;
+  }[];
+  const attributes = db.query("SELECT entity_id, attribute, value FROM eav").all() as {
+    entity_id: number;
+    attribute: string;
+    value: string;
+  }[];
+  return entities.map((entity) => ({
+    entity: entity.name,
+    attributes: Object.fromEntries(
+      attributes.filter((a) => a.entity_id === entity.id).map((a) => [a.attribute, a.value]),
+    ),
+  }));
+}
+
+if (command === "query") {
+  const { namespace, dbPath } = resolveGraph();
+  const db = new Database(dbPath, { readonly: true });
+  const items = readItems(db);
+  db.close();
+  // An empty graph answers with the same shape as a full one — same fields, same types.
+  // Answering `{}` or a null items list when empty would force every caller to write the
+  // branch twice, and would teach an Operator that a new graph is a broken one.
+  succeed({ graph: namespace, count: items.length, items });
 }
 
 if (command === "introduce") {
