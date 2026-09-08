@@ -4,9 +4,56 @@
 // The CLI is the UX and its user is an AI agent, so every answer is JSON on stdout and
 // the process boundary is the whole contract.
 
+import { Database } from "bun:sqlite";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import * as path from "node:path";
+
 const argv = process.argv.slice(2);
 const command = argv[0];
 const flags = new Set(argv.slice(1));
+
+/**
+ * The fields the profile schema declares. Named once here because both the writer and
+ * the completeness check read it — the doc expects this list to grow ("probably more -
+ * TBD") and a second copy is how it would grow out of step with itself.
+ */
+const PROFILE_FIELDS = ["namespace", "use-pattern", "description"] as const;
+
+/**
+ * The functional face. One file, self-contained, openable by anything that speaks
+ * SQLite — the doc's requirement is that it "neatly contains *everything* functional",
+ * so the profile and the convention live in here beside the data rather than in
+ * companion files that can be separated from it.
+ *
+ * EAV rows hang off `entity` by id rather than repeating the name, which is what makes
+ * "every EAV row resolves to a known entity" (IN-1) structural instead of a convention
+ * the engine has to remember to honor.
+ *
+ * No WAL, deliberately: it would leave `-wal`/`-shm` files beside the database and
+ * break IN-6, and one short-lived process per command needs no concurrency.
+ */
+const SCHEMA = `
+  CREATE TABLE profile (
+    field TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  CREATE TABLE convention (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    recorded_at TEXT NOT NULL
+  );
+  CREATE TABLE entity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE eav (
+    entity_id INTEGER NOT NULL REFERENCES entity(id) ON DELETE CASCADE,
+    attribute TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (entity_id, attribute)
+  );
+`;
 
 const SYSTEM_INTRODUCTION = [
   "Cog-Graphs spawns and manipulates persistent structured stores — a Cog Graph is an",
@@ -35,7 +82,17 @@ const INTERFACE_SKILL_PRIMER = [
   "Establish the profile with the User conversationally — namespace, use-pattern, and a",
   "description in their words — then write it to a one-time-use `.yml` and pass it in:",
   "",
+  "  profile:",
+  "    namespace: game-recs",
+  "    use-pattern: manual",
+  "    description: Games Ethan has played and what he thought of them.",
+  "  convention: |",
+  "    Every game carries a status and a taste-alignment.",
+  "",
   "  cog-graphs initialize --profile <profile.yml> [--dir <path>]",
+  "",
+  "The convention is the graph's own expectations about its schema — seed it with what",
+  "you are actually about to store, and amend it as the shape of the data changes.",
   "",
   "## Look at what is there",
   "",
@@ -94,7 +151,7 @@ const HELP: Record<string, Help> = {
     usage: "cog-graphs initialize --profile <file.yml> [--dir <path>]",
     required: {
       "--profile":
-        "Path to a .yml carrying the profile: namespace, use-pattern, description, and a seed convention.",
+        "Path to a .yml holding a 'profile:' map (namespace, use-pattern, description) and a 'convention:' string to seed the graph with.",
     },
     optional: {
       "--dir": "Directory to create the graph in. Defaults to the working directory.",
@@ -234,6 +291,98 @@ if (command && HELP[command]) {
       `Run 'cog-graphs ${command} --help' for the usage and a runnable example.`,
     );
   }
+}
+
+// Every required flag is checked from the help entry, so the check cannot drift from
+// what help promises — the two read the same table.
+if (command && HELP[command]) {
+  for (const flag of Object.keys(HELP[command].required)) {
+    if (!flags.has(flag)) {
+      fail(
+        EXIT.USAGE,
+        "missing_option",
+        `${command} requires ${flag}: ${HELP[command].required[flag]}`,
+        `Run 'cog-graphs ${command} --help' for a runnable example.`,
+      );
+    }
+  }
+}
+
+/** The value following a flag, e.g. `--profile ./p.yml`. */
+function optionValue(flag: string): string | undefined {
+  const at = argv.indexOf(flag);
+  if (at === -1) return undefined;
+  const next = argv[at + 1];
+  return next && !next.startsWith("--") ? next : undefined;
+}
+
+if (command === "initialize") {
+  const profilePath = optionValue("--profile");
+  if (!profilePath) {
+    fail(
+      EXIT.USAGE,
+      "missing_value",
+      "--profile needs the path to a .yml file.",
+      "Write the profile to a .yml, then pass its path: cog-graphs initialize --profile ./profile.yml",
+    );
+  }
+
+  const resolved = path.resolve(process.cwd(), profilePath);
+  if (!existsSync(resolved)) {
+    fail(
+      EXIT.NOT_FOUND,
+      "profile_not_found",
+      `No profile file at ${resolved}.`,
+      "Write the profile to a .yml first, then pass that path to --profile.",
+    );
+  }
+
+  let document: unknown;
+  try {
+    document = Bun.YAML.parse(readFileSync(resolved, "utf8"));
+  } catch (cause) {
+    fail(
+      EXIT.USAGE,
+      "profile_unparseable",
+      `${resolved} is not valid YAML: ${(cause as Error).message}`,
+      "Fix the YAML and run initialize again. Quoting every value is the safe default.",
+    );
+  }
+
+  const doc = (document ?? {}) as Record<string, unknown>;
+  const profile = (doc.profile ?? {}) as Record<string, unknown>;
+  const missing = PROFILE_FIELDS.filter((field) => typeof profile[field] !== "string");
+  if (missing.length > 0) {
+    fail(
+      EXIT.USAGE,
+      "profile_incomplete",
+      `The profile is missing: ${missing.join(", ")}.`,
+      `Add the missing field(s) under 'profile:' in ${resolved}. Every profile needs: ${PROFILE_FIELDS.join(", ")}.`,
+    );
+  }
+
+  const namespace = profile.namespace as string;
+  const dir = path.resolve(process.cwd(), optionValue("--dir") ?? ".");
+  const dbPath = path.join(dir, `${namespace}.sqlite`);
+  if (existsSync(dbPath)) {
+    fail(
+      EXIT.ALREADY_EXISTS,
+      "graph_exists",
+      `A graph named '${namespace}' already lives at ${dbPath}.`,
+      `Use it as it is — 'cog-graphs introduce --graph ${namespace}' — or choose a different namespace in the profile.`,
+    );
+  }
+  mkdirSync(dir, { recursive: true });
+
+  const db = new Database(dbPath, { create: true });
+  db.exec(SCHEMA);
+  const insertField = db.prepare("INSERT INTO profile (field, value) VALUES (?, ?)");
+  for (const field of PROFILE_FIELDS) {
+    insertField.run(field, profile[field] as string);
+  }
+  db.close();
+
+  succeed({ graph: namespace, path: dbPath, profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
 }
 
 if (command === "introduce") {

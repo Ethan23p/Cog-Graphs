@@ -9,7 +9,8 @@
 // no local CONTRACTS.md yet; when test cases are written, the assertions they encode
 // become the second layer of the spec and are never edited to fit the implementation.
 
-import { mkdtempSync, existsSync, readdirSync, statSync, readFileSync } from "node:fs";
+import { Database } from "bun:sqlite";
+import { mkdtempSync, existsSync, readdirSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
@@ -54,6 +55,54 @@ export function runCli(args: string[], opts: { cwd: string }): CliResult {
     stderr: proc.stderr.toString(),
     exitCode: proc.exitCode ?? -1,
   };
+}
+
+/**
+ * Read the artifact the way an inspector would — open the `.sqlite` directly, not
+ * through the CLI. Cases that read the database and cases that read through the CLI
+ * fail for different reasons, and the doc's whole "functional face" claim is that the
+ * file stands on its own, so the suite has to be able to open it without the engine.
+ */
+export function readProfile(dbPath: string): Record<string, string> {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const rows = db.query("SELECT field, value FROM profile").all() as {
+      field: string;
+      value: string;
+    }[];
+    return Object.fromEntries(rows.map((r) => [r.field, r.value]));
+  } finally {
+    db.close();
+  }
+}
+
+/** The convention recorded in the artifact, oldest entry first (IN-8, DE-21). */
+export function readConvention(dbPath: string): string[] {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const rows = db.query("SELECT text FROM convention ORDER BY seq").all() as { text: string }[];
+    return rows.map((r) => r.text);
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Write a profile `.yml` the way an Operator would: the profile map the artifact stores,
+ * plus the seed convention beside it. Values are JSON-quoted, which is valid YAML and
+ * survives apostrophes, `=`, non-ASCII and newlines without a YAML writer (DE-23).
+ */
+export function writeProfileYml(
+  filePath: string,
+  profile: Record<string, string>,
+  convention: string,
+): void {
+  const lines = ["profile:"];
+  for (const [field, value] of Object.entries(profile)) {
+    lines.push(`  ${field}: ${JSON.stringify(value)}`);
+  }
+  lines.push(`convention: ${JSON.stringify(convention)}`);
+  writeFileSync(filePath, lines.join("\n") + "\n");
 }
 
 /** Fresh temp sandbox per test. */
