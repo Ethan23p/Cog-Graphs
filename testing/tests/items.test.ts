@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readItems, runCli, spawnGraph } from "./helpers";
 import { EXIT } from "./contract";
+import { readSidecar } from "./helpers";
 
 describe("DE-9 — what add-item stores, read straight from the .sqlite", () => {
   // Read from the database rather than through `query`, deliberately. The doc's promise
@@ -54,5 +55,44 @@ describe("DE-9 — what add-item stores, read straight from the .sqlite", () => 
 
     expect(r.exitCode).toBe(EXIT.OK);
     expect(readItems(db)).toEqual([{ entity: "Tunic", attributes: {} }]);
+  });
+});
+
+describe("DE-12 — the sidecar enumerates the items after the add", () => {
+  // The sidecar is derived, which means it is only true if something re-derives it. An
+  // engine that writes it once at initialize and forgets is the likely failure, and it
+  // is a quiet one: the file is still there, still looks right, and is simply stale. For
+  // a graph this small the doc asks for each item enumerated, so the enumeration is what
+  // the case reads.
+  test("names each entity and its pairs", () => {
+    const { cwd, namespace, sidecar } = spawnGraph({ namespace: "de12" });
+    runCli(
+      [
+        "add-item",
+        "--graph",
+        namespace,
+        "--entity",
+        "Outer Wilds",
+        "--attr",
+        "status=playing",
+        "--attr",
+        "taste-alignment=very high",
+      ],
+      { cwd },
+    );
+    runCli(["add-item", "--graph", namespace, "--entity", "Tunic", "--attr", "status=backlog"], {
+      cwd,
+    });
+
+    const text = readSidecar(sidecar);
+
+    expect(text).toContain("Outer Wilds");
+    expect(text).toContain("Tunic");
+    // Enumerating the names alone would let an observer see what is tracked but not
+    // what is known about it, which is most of the value of looking.
+    expect(text).toContain("playing");
+    expect(text).toContain("taste-alignment");
+    expect(text).toContain("very high");
+    expect(text).toContain("backlog");
   });
 });
