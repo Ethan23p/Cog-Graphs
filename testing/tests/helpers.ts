@@ -10,7 +10,7 @@
 // become the second layer of the spec and are never edited to fit the implementation.
 
 import { Database } from "bun:sqlite";
-import { mkdtempSync, existsSync, readdirSync, statSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync, readdirSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
@@ -131,6 +131,20 @@ export function writeProfileYml(
 /** Fresh temp sandbox per test. */
 export function makeSandbox(prefix = "cog-test-"): string {
   return mkdtempSync(path.join(tmpdir(), prefix));
+}
+
+/**
+ * A sandbox that is deliberately *not* under the platform temp root.
+ *
+ * DE-7 is a two-directional case and `makeSandbox` can only test one direction — every
+ * sandbox it makes is exactly the situation the guard is supposed to warn about. So the
+ * "ordinary directory" side needs somewhere else to live. `testing/.scratch/` is
+ * gitignored and stands in for the User's own directory.
+ */
+export function makeOrdinarySandbox(prefix = "cog-test-"): string {
+  const scratch = path.join(REPO_ROOT, "testing", ".scratch");
+  mkdirSync(scratch, { recursive: true });
+  return mkdtempSync(path.join(scratch, prefix));
 }
 
 /** LF-normalize for content comparison (see DESIGN.md G1). */

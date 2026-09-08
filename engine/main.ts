@@ -5,7 +5,8 @@
 // the process boundary is the whole contract.
 
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 const argv = process.argv.slice(2);
@@ -332,6 +333,27 @@ function writeSidecar(dbPath: string): void {
   writeFileSync(sidecar, renderSidecar(dbPath));
 }
 
+/**
+ * Is this path inside the platform temp root?
+ *
+ * Compared through `path.relative` rather than a string prefix, so a sibling directory
+ * that merely starts with the same characters is not mistaken for a child — the guard
+ * only stays worth reading if it does not fire on directories that are fine.
+ */
+function isUnderTempRoot(dir: string): boolean {
+  const rel = path.relative(realpathish(tmpdir()), realpathish(dir));
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/** realpath where possible; the literal path where it does not resolve. */
+function realpathish(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 /** Accepted by every command. */
 const GLOBAL_FLAGS = ["--pretty", "--help"];
 
@@ -464,6 +486,24 @@ if (command === "initialize") {
 
   const namespace = profile.namespace as string;
   const dir = path.resolve(process.cwd(), optionValue("--dir") ?? ".");
+
+  // The quiet failure this catches: an Assistant initializes the graph inside its own
+  // ephemeral environment, every command succeeds, and the User never sees the artifact
+  // again. It is a warning rather than a refusal because a Cog Graph used as a scratch
+  // resource is legitimate — the Operator is told what they are trading away and gets to
+  // decide. It rides in the payload rather than on stderr so success stays one parseable
+  // object on one stream (IN-9).
+  const warnings: { code: string; message: string; next_step: string }[] = [];
+  if (isUnderTempRoot(dir)) {
+    warnings.push({
+      code: "temp_directory",
+      message:
+        `This graph is being created under the platform temp directory (${tmpdir()}). Artifacts there are ` +
+        `routinely deleted by the operating system and are usually invisible to the User, so the graph and ` +
+        `everything put into it can disappear without anyone being told.`,
+      next_step: `If this graph is meant to last, re-run initialize with --dir pointing somewhere the User owns, e.g. cog-graphs initialize --profile <file.yml> --dir <path>. If it is deliberately scratch, no action is needed.`,
+    });
+  }
   const dbPath = path.join(dir, `${namespace}.sqlite`);
   if (existsSync(dbPath)) {
     fail(
@@ -488,7 +528,7 @@ if (command === "initialize") {
   db.close();
   writeSidecar(dbPath);
 
-  succeed({ graph: namespace, path: dbPath, sidecar: path.join(dir, `${namespace}.md`), profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
+  succeed({ graph: namespace, path: dbPath, sidecar: path.join(dir, `${namespace}.md`), warnings, profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
 }
 
 if (command === "introduce") {
