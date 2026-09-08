@@ -76,6 +76,29 @@ export function readProfile(dbPath: string): Record<string, string> {
   }
 }
 
+/**
+ * What SQLite itself says about the file, plus the one referential claim the schema
+ * makes: every EAV row hangs off a real entity. SQLite does not enforce foreign keys
+ * unless asked, so "structurally impossible" is only true if something checks — this is
+ * that check (IN-1).
+ */
+export function artifactIntegrity(dbPath: string): { integrity: string; orphanRows: number } {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const [{ integrity_check }] = db.query("PRAGMA integrity_check").all() as {
+      integrity_check: string;
+    }[];
+    const [{ orphans }] = db
+      .query(
+        "SELECT COUNT(*) AS orphans FROM eav LEFT JOIN entity ON entity.id = eav.entity_id WHERE entity.id IS NULL",
+      )
+      .all() as { orphans: number }[];
+    return { integrity: integrity_check, orphanRows: orphans };
+  } finally {
+    db.close();
+  }
+}
+
 /** The convention recorded in the artifact, oldest entry first (IN-8, DE-21). */
 export function readConvention(dbPath: string): string[] {
   const db = new Database(dbPath, { readonly: true });
