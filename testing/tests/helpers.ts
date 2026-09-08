@@ -99,6 +99,37 @@ export function artifactIntegrity(dbPath: string): { integrity: string; orphanRo
   }
 }
 
+/**
+ * Read the items straight out of the database, entity name ascending.
+ *
+ * The CLI has a `query` that answers the same question, and the suite deliberately keeps
+ * both: DE-9 reads the database and DE-10 reads through the CLI because they fail for
+ * different reasons — one catches an engine that stores the wrong thing, the other an
+ * engine that stores the right thing and reports it wrong.
+ */
+export function readItems(dbPath: string): { entity: string; attributes: Record<string, string> }[] {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const entities = db.query("SELECT id, name FROM entity ORDER BY name").all() as {
+      id: number;
+      name: string;
+    }[];
+    const attributes = db.query("SELECT entity_id, attribute, value FROM eav").all() as {
+      entity_id: number;
+      attribute: string;
+      value: string;
+    }[];
+    return entities.map((e) => ({
+      entity: e.name,
+      attributes: Object.fromEntries(
+        attributes.filter((a) => a.entity_id === e.id).map((a) => [a.attribute, a.value]),
+      ),
+    }));
+  } finally {
+    db.close();
+  }
+}
+
 /** The convention recorded in the artifact, oldest entry first (IN-8, DE-21). */
 export function readConvention(dbPath: string): string[] {
   const db = new Database(dbPath, { readonly: true });

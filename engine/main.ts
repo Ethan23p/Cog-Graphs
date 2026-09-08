@@ -601,6 +601,84 @@ function readItems(db: Database): { entity: string; attributes: Record<string, s
   }));
 }
 
+/** Every value given for a repeatable flag, in the order the Operator wrote them. */
+function optionValues(flag: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] !== flag) continue;
+    const next = argv[i + 1];
+    if (next !== undefined && !next.startsWith("--")) out.push(next);
+  }
+  return out;
+}
+
+/**
+ * Parse `--attr key=value` pairs.
+ *
+ * Split on the *first* `=` only, so a value may contain `=` freely (DE-23). The
+ * alternative — splitting on every `=` and rejecting the rest — would quietly refuse
+ * perfectly ordinary values like a URL with a query string.
+ */
+function parseAttrs(flag = "--attr"): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const raw of optionValues(flag)) {
+    const at = raw.indexOf("=");
+    if (at <= 0) {
+      fail(
+        EXIT.USAGE,
+        "malformed_attribute",
+        `'${raw}' is not a key=value pair.`,
+        `Write the attribute as ${flag} key=value, e.g. ${flag} status=completed. The value may itself contain '=' — only the first one separates.`,
+      );
+    }
+    attrs[raw.slice(0, at)] = raw.slice(at + 1);
+  }
+  return attrs;
+}
+
+if (command === "add-item") {
+  const { namespace, dbPath } = resolveGraph();
+  const entity = optionValue("--entity");
+  if (!entity) {
+    fail(
+      EXIT.USAGE,
+      "missing_value",
+      "--entity needs the name of the entity to add.",
+      `Name it: cog-graphs add-item --graph ${namespace} --entity <name> [--attr key=value ...]`,
+    );
+  }
+  const attributes = parseAttrs();
+
+  const db = new Database(dbPath);
+  const existing = db.query("SELECT id FROM entity WHERE name = ?").get(entity) as
+    | { id: number }
+    | undefined;
+  if (existing) {
+    db.close();
+    fail(
+      EXIT.ALREADY_EXISTS,
+      "entity_exists",
+      `'${entity}' is already in ${namespace}.`,
+      `Use modify item instead: cog-graphs modify-item --graph ${namespace} --entity '${entity}' --attr key=value`,
+    );
+  }
+
+  // Exactly what was supplied and nothing else — no inferred attributes, no defaults.
+  // The doc's default assumption is source data at source fidelity, and an engine that
+  // helpfully adds a field is an engine putting words in the Operator's mouth.
+  const { lastInsertRowid } = db
+    .prepare("INSERT INTO entity (name, created_at) VALUES (?, ?)")
+    .run(entity, new Date().toISOString());
+  const insertAttr = db.prepare("INSERT INTO eav (entity_id, attribute, value) VALUES (?, ?, ?)");
+  for (const [attribute, value] of Object.entries(attributes)) {
+    insertAttr.run(lastInsertRowid as number, attribute, value);
+  }
+  db.close();
+  writeSidecar(dbPath);
+
+  succeed({ graph: namespace, entity, attributes, added: true });
+}
+
 if (command === "query") {
   const { namespace, dbPath } = resolveGraph();
   const db = new Database(dbPath, { readonly: true });
