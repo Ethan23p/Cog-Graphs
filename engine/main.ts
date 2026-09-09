@@ -56,11 +56,10 @@ const BINARY = "cog-graphs";
  * leaves as its slice lands — `import` at DE-19/DE-20, `convention` at DE-21 — and the
  * set going empty is what retires DE-19.3.
  */
-const UNBUILT = new Set(["import", "convention"]);
+const UNBUILT = new Set(["convention"]);
 
 /** What to do in the meantime, per unbuilt command. Vague advice is not a next step. */
 const UNBUILT_NEXT_STEP: Record<string, string> = {
-  import: `Add the items one at a time for now: ${BINARY} add-item --entity <name> --attr key=value`,
   convention: `The convention is seeded at initialize and shown by '${BINARY} introduce'; amending it from the CLI is not available yet.`,
 };
 
@@ -703,6 +702,34 @@ if (command && HELP[command]) {
   }
 }
 
+// Syntax before semantics: a documented flag written without a value fails here, ahead
+// of the missing-required-flag check below.
+//
+// Both diagnoses are true of `import --graph` — `--graph` has no value AND `--from` is
+// absent — so the only question is which one an Operator can act on. The dangling flag is
+// the more specific and more local answer: it names a token actually present in the
+// command line and says what is wrong with it, where "import requires --from" ignores the
+// broken thing just written. It is also the likelier defect in practice, because a value
+// that vanished into shell quoting or a template leaves exactly this shape behind.
+//
+// The uniform rule is what DE-19.6.1 sweeps for: every value-taking flag in the grammar
+// reaches the missing-value rule, on every command, no matter what else is wrong with the
+// invocation. Deciding this per command is how the rule goes selectively true.
+//
+// Booleans are excluded because for them a bare flag is the correct spelling.
+if (command && HELP[command]) {
+  const valueless = new Set<string>(["--interface-skill", ...GLOBAL_FLAGS]);
+  const documented = new Set([
+    ...Object.keys(HELP[command].required),
+    ...Object.keys(HELP[command].optional),
+  ]);
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (!documented.has(token) || valueless.has(token)) continue;
+    valueAfter(token, i);
+  }
+}
+
 // Every required flag is checked from the help entry, so the check cannot drift from
 // what help promises — the two read the same table.
 if (command && HELP[command]) {
@@ -1099,6 +1126,75 @@ if (command === "add-item") {
   writeSidecar(dbPath);
 
   succeed({ graph: namespace, entity, attributes, added: true });
+}
+
+if (command === "import") {
+  const { namespace, dbPath } = resolveGraph();
+  const from = optionValue("--from");
+  if (!from) {
+    fail(
+      EXIT.USAGE,
+      "missing_value",
+      "--from needs the path to a .yml file of items to ingest.",
+      `Write the items to a .yml, then pass its path: cog-graphs import --graph ${namespace} --from ./items.yml`,
+    );
+  }
+
+  const resolved = path.resolve(process.cwd(), from);
+  if (!existsSync(resolved)) {
+    fail(
+      EXIT.NOT_FOUND,
+      "source_not_found",
+      `No source file at ${resolved}.`,
+      "Write the items to a .yml first, then pass that path to --from.",
+    );
+  }
+
+  let document: unknown;
+  try {
+    document = Bun.YAML.parse(readFileSync(resolved, "utf8"));
+  } catch (cause) {
+    fail(
+      EXIT.USAGE,
+      "source_unparseable",
+      `${resolved} is not valid YAML: ${(cause as Error).message}`,
+      "Fix the YAML and run import again. Quoting every value is the safe default.",
+    );
+  }
+
+  // The file mirrors add-item in data form — an entity and its attribute map — so an
+  // agent that has read `add-item --help` already knows how to write one, and the two
+  // surfaces cannot drift into two different models of what an item is.
+  const doc = (document ?? {}) as Record<string, unknown>;
+  const records = Array.isArray(doc.items) ? doc.items : [];
+
+  const db = new Database(dbPath);
+  const insertEntity = db.prepare("INSERT INTO entity (name, created_at) VALUES (?, ?)");
+  const insertAttr = db.prepare("INSERT INTO eav (entity_id, attribute, value) VALUES (?, ?, ?)");
+  const now = new Date().toISOString();
+  let ingested = 0;
+
+  for (const record of records) {
+    const item = (record ?? {}) as Record<string, unknown>;
+    const entity = typeof item.entity === "string" ? item.entity : "";
+    const attributes = (item.attributes ?? {}) as Record<string, unknown>;
+
+    const { lastInsertRowid } = insertEntity.run(entity, now);
+    for (const [attribute, value] of Object.entries(attributes)) {
+      insertAttr.run(lastInsertRowid as number, attribute, String(value));
+    }
+    ingested++;
+  }
+  db.close();
+
+  // Written once, at the end, rather than once per item. The inspectable face is derived
+  // from the artifact in full every time, so a per-item rewrite would be N passes over a
+  // file whose only correct content is the last one.
+  writeSidecar(dbPath);
+
+  // The count is the whole of what a bulk Operator gets back — it cannot read the result
+  // item by item — so it counts what landed, not what was offered.
+  succeed({ graph: namespace, source: resolved, ingested });
 }
 
 if (command === "modify-item") {

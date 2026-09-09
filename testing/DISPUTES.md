@@ -45,6 +45,37 @@ _None._
 
 ## Resolved
 
+### IN-9/IN-10/IN-11 — the "unbuilt command" row named `import` in a literal
+- **Raised**: 2026-09-09 by Claude, during DE-19.
+- **Applied under the DE-19.3 precedent rather than held open** — see Resolution. Flagged
+  here and in the commit so reversing it costs one commit.
+- **The case said**: `invariants.test.ts`,
+  `here("unbuilt command", ["import", "--graph", g.namespace, "--from", "./items.yml"])`,
+  graded by IN-10 against `EXIT.INTERNAL` and by IN-9/IN-11 as a structured failure.
+- **The problem**: the identical shape to DE-19.3, in a file the DE-19.3 dispute did not
+  name because I had not found it yet. The moment `import` was built, that invocation
+  stopped being an unbuilt command and became a missing *file* — `source_not_found`,
+  `EXIT.NOT_FOUND`. IN-9 and IN-11 stayed green, because a missing file is still a
+  structured failure; only IN-10's exit-code row went red. That asymmetry is worth
+  noting: two of the three sweeps would have gone on passing while covering something
+  other than what their label said, which is the failure mode a table-driven test is
+  most prone to and least likely to announce.
+- **What I did**: amended it the way Ethan resolved DE-19.3 — the command is asked of the
+  CLI. `unbuiltInvocation()` walks COMMANDS, takes the first whose `--help` reports
+  `status: "not_implemented"`, and returns one invocation for it, or none when the set is
+  empty. It is invoked with **no options at all**, so nothing but the build status can
+  produce the answer. Giving it plausible-looking flags is precisely what let the old row
+  drift.
+- **Probed**: emptied `UNBUILT` in the engine and re-ran. The suite dropped from 125 to
+  121 tests in that file with 0 failures — so the row is live and derived rather than
+  incidentally passing, and the sweeps stay honest when nothing is unbuilt instead of
+  going red or going vacuous.
+- **Resolution**: 2026-09-09, applied under Ethan's DE-19.3 resolution of the same day,
+  which upheld exactly this claim ("the case's real claim survives; only its input moved
+  from a literal to the CLI") and blessed DE-19, which cannot land while this row names
+  `import`. Ethan confirms or reverses; I did not treat the precedent as covering
+  anything beyond the identical defect in a second file.
+
 ### DE-19.3 — the unbuilt-command sweep cannot empty itself, and blocks DE-19
 - **Raised**: 2026-09-08 by Claude
 - **The case says**: `testing/tests/entrypoint.test.ts`, `const unbuilt = ["import",

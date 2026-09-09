@@ -155,7 +155,9 @@ case, and are pending Ethan's ratification into the doc.
   --help`, and an unknown command each produce output rather than silence.
   - Same review. All three exited 1 with empty stdout *and* empty stderr, which is the
     first thing RU-3's zero-priming agent meets.
-- **DE-19.3** A command that exists in the grammar but is not yet implemented fails with
+- **DE-19.3** *(amended 2026-09-09 by Ethan's resolution — sweep now derived from the
+  CLI rather than a literal, so it retires itself as commands land; see DISPUTES.md)* A
+  command that exists in the grammar but is not yet implemented fails with
   an explicit `not_implemented` error carrying a `next_step`.
   - Same review. `import` and `convention` are graded by DE-5 as deliverables and
     answered with nothing at all.

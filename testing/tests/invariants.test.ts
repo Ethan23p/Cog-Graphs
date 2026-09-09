@@ -15,6 +15,29 @@ import { COMMANDS, ERROR_FIELDS, EXIT, GLOBAL_FLAGS } from "./contract";
 //
 // The invocation table below is therefore built to be *unpleasant*: successes and failures
 // of every class the exit alphabet names, plus the ways an agent gets it wrong.
+/**
+ * The unbuilt-command row, asked of the CLI rather than named in a literal.
+ *
+ * Returns at most one invocation — one is enough to pin the property, and every unbuilt
+ * command answers identically by construction — and returns none once the set empties,
+ * at which point there is no such thing as an unbuilt command to grade.
+ *
+ * Invoked with no options at all, so the answer cannot come from anything but the
+ * command's build status. Giving it plausible-looking flags is what let the old row
+ * drift: `import --from ./items.yml` graded a missing *file* the moment `import` landed,
+ * while still being labelled and scored as an unbuilt command.
+ */
+function unbuiltInvocation(cwd: string, namespace: string): { label: string; args: string[]; cwd: string }[] {
+  void namespace;
+  for (const command of COMMANDS) {
+    const help = JSON.parse(runCli([command.name, "--help"], { cwd }).stdout);
+    if (help.status === "not_implemented") {
+      return [{ label: "unbuilt command", args: [command.name], cwd }];
+    }
+  }
+  return [];
+}
+
 function invocations(): { label: string; args: string[]; cwd: string }[] {
   const g = spawnGraph({ namespace: "invariants" });
   runCli(["add-item", "--graph", g.namespace, "--entity", "Sword", "--attr", "status=owned"], {
@@ -58,7 +81,14 @@ function invocations(): { label: string; args: string[]; cwd: string }[] {
     here("entity not found", ["modify-item", "--graph", g.namespace, "--entity", "Ghost", "--attr", "a=b"]),
     here("already exists", ["add-item", "--graph", g.namespace, "--entity", "Sword"]),
     there("profile not found", ["initialize", "--profile", "./nowhere.yml"]),
-    here("unbuilt command", ["import", "--graph", g.namespace, "--from", "./items.yml"]),
+    // AMENDED 2026-09-09, under Ethan's resolution of the DE-19.3 dispute (DISPUTES.md).
+    // This row named `import` in a literal, and DE-19 built `import`, so the row's own
+    // label stopped being true of its invocation: it exercised source_not_found and was
+    // graded against not_implemented. The command is asked of the CLI now, exactly as
+    // DE-19.3 and DE-19.6.1 ask it, so the row tracks whatever is actually unbuilt and
+    // disappears when nothing is — which is the honest end state for a row about
+    // unbuilt commands.
+    ...unbuiltInvocation(g.cwd, g.namespace),
     // The empty invocation: where an agent with no priming starts.
     here("bare", []),
   ];
