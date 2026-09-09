@@ -268,6 +268,45 @@ if (strays.length > 0) {
   console.error(`[walking-skeleton] IN-6 FAIL — stray artifacts: ${strays.join(", ")}`);
 }
 
+// DE-24 — the ergonomics budget. The doc asks for declared ceilings on agent turns, tool
+// calls, and total tokens, generous at first and tightened as the numbers stabilize.
+//
+// These are 2x the first passing run (2026-09-09: 24 agent turns, 18 tool calls, 245,997
+// tokens counting cache, $0.543 over 6 user turns). One sample is one sample, so 2x rather
+// than 1.2x — the ceiling is here to catch a regression *in kind*, an interface that
+// started costing an agent twice as many attempts, not to police normal variance. Every
+// tightening should name the runs it was computed from, the way this one does.
+//
+// Cache reads are counted. They are the bulk of the traffic and they are real tokens the
+// interface caused to be read; excluding them would let the primer grow without limit and
+// still look free, which is the exact failure the priority on token efficiency is about.
+//
+// Appended below the reporting line rather than folded into it: this file is frozen, and
+// an edited line is a removed line.
+const CEILINGS = { agentTurns: 48, toolCalls: 36, tokens: 500_000 };
+const de24 = {
+  agentTurns: result.stats.agentTurnsPerMessage.reduce((a, b) => a + b, 0),
+  toolCalls: result.stats.toolCallCount,
+  tokens:
+    result.stats.totalInputTokens +
+    result.stats.totalOutputTokens +
+    result.stats.totalCacheReadTokens +
+    result.stats.totalCacheCreationTokens,
+};
+const overBudget = (Object.keys(CEILINGS) as (keyof typeof CEILINGS)[]).filter(
+  (k) => de24[k] > CEILINGS[k],
+);
+console.error(
+  `[walking-skeleton] DE-24 ceilings: ` +
+    (Object.keys(CEILINGS) as (keyof typeof CEILINGS)[])
+      .map((k) => `${k} ${de24[k]}/${CEILINGS[k]}`)
+      .join(", "),
+);
+for (const k of overBudget) {
+  console.error(`[walking-skeleton] DE-24 FAIL — ${k}: ${de24[k]} exceeds the ceiling of ${CEILINGS[k]}`);
+}
+if (overBudget.length > 0) process.exit(1);
+
 console.error(
   `[walking-skeleton] DE-24 budget: ${result.stats.turns} user turns, ` +
     `${result.stats.agentTurnsPerMessage.reduce((a, b) => a + b, 0)} agent turns, ` +
