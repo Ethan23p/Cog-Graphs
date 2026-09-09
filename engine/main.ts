@@ -121,8 +121,8 @@ const INTERFACE_SKILL_PRIMER = [
   "",
   "A Cog Graph is an EAV store: entities carry attribute/value pairs. It lives as two",
   "files in a directory the User owns — `<namespace>.sqlite`, which holds everything,",
-  "and a derived `<namespace>.md` beside it, which is written for inspection and never",
-  "read back. Do not hand-edit the `.md`; do not put either file in a temp directory,",
+  "and a derived `<namespace>.md` beside it, which is written for inspection and is never",
+  "a source of truth. Do not hand-edit the `.md`; do not put either file in a temp directory,",
   "or the User loses the thing they were meant to keep.",
   "",
   "## Spawn one",
@@ -296,8 +296,12 @@ const HELP: Record<string, Help> = {
 /**
  * Render the inspectable face.
  *
- * Two rules govern this file and both come straight from the doc. It is *derived*: the
- * engine writes it and never reads it, so anything only recorded here is not recorded.
+ * Two rules govern this file and both come straight from the doc. It is *derived*: no
+ * content is ever taken from it, so anything only recorded here is not recorded. The
+ * engine does open it: writeSidecar compares the rendering against what is on disk to skip
+ * a no-op rewrite (IN-4), then discards what it read. Nothing from the file reaches the
+ * artifact or an answer. Worth stating precisely, because "never read" is a claim about
+ * trust rather than about file handles, and it is the claim the Operator relies on.
  * And it is *for an observer* — the person or agent who found a `.sqlite` in a directory
  * and has no idea what it is — so it leads with what the graph is for and how to work
  * it, and the item listing comes after.
@@ -348,7 +352,7 @@ function renderSidecar(dbPath: string): string {
     lines.push(`# ${inline(namespace)}`, "");
     lines.push(
       "> Derived file — do not edit. The engine rewrites it whenever the graph changes,",
-      `> and never reads it back. Everything real lives in \`${path.basename(dbPath)}\`.`,
+      `> and never takes anything back from it. Everything real lives in \`${path.basename(dbPath)}\`.`,
       "",
     );
     lines.push(
@@ -546,7 +550,12 @@ function prettyLines(value: unknown, indent: string, depth = 0): string[] {
     const out: string[] = [];
     for (const item of value) {
       if (item !== null && typeof item === "object") {
-        out.push(...prettyLines(item, indent + "  ", depth + 1), "");
+        // A bullet on the item's first line, so the boundary between two items is
+        // something the reader can see and count rather than infer from a blank line —
+        // which vanishes exactly when an item has nothing in it (DE-19.8.2).
+        const rendered = prettyLines(item, indent + "  ", depth + 1);
+        if (rendered.length > 0) rendered[0] = `${indent}- ${rendered[0].trimStart()}`;
+        out.push(...rendered, "");
       } else {
         out.push(`${indent}- ${depth === 0 ? String(item) : inline(String(item))}`);
       }
@@ -561,7 +570,12 @@ function prettyLines(value: unknown, indent: string, depth = 0): string[] {
       // wants words. The label is the only cosmetic liberty taken with the data.
       const label = key.replace(/_/g, " ");
       if (child !== null && typeof child === "object") {
-        out.push(`${indent}${label}:`, ...prettyLines(child, indent + "  ", depth + 1), "");
+        // Emptiness is a fact about the data, so it is rendered as one. A bare label with
+        // nothing beneath it cannot be told apart from a renderer that stopped, and the
+        // reader has no way to check (DE-19.8.2).
+        const rendered = prettyLines(child, indent + "  ", depth + 1);
+        if (rendered.length === 0) out.push(`${indent}${label}: (none)`);
+        else out.push(`${indent}${label}:`, ...rendered, "");
       } else if (typeof child === "string" && child.includes("\n") && depth > 0) {
         out.push(`${indent}${label}: ${inline(child)}`);
       } else if (typeof child === "string" && child.includes("\n")) {
