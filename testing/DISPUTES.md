@@ -41,7 +41,38 @@ to make a suite lie.
 
 ## Open
 
-_None._
+### DE-19.3 — the unbuilt-command sweep cannot empty itself, and blocks DE-19
+- **Raised**: 2026-09-08 by Claude
+- **The case says**: `testing/tests/entrypoint.test.ts`, `const unbuilt = ["import",
+  "convention"];` — for each name, run the first example from its own `--help` and
+  require exit non-zero with `code: "not_implemented"`.
+- **The problem**: the case's own comment states its lifetime — *"as DE-19/20/21 land,
+  each command graduates out of UNBUILT and this stops covering it. The sweep is written
+  over the set rather than the names so it empties itself honestly."* It is not written
+  over the set. It is written over a hardcoded literal, so it does the opposite of what
+  it says: the moment `import` is implemented, `import --help`'s example succeeds and
+  DE-19.3 goes red. I wrote that comment and that literal in the same slice, and the
+  contradiction between them is mine.
+- **Why it can't be worked around**: DE-19 (bulk ingestion) requires `import` to exist.
+  There is no engine that satisfies both DE-19 and DE-19.3 as written — one requires the
+  command to work, the other requires it to report that it does not. DE-21 will collide
+  with `convention` in exactly the same way.
+- **What I did instead**: left the case untouched, and did not implement `import`. The
+  DE-19 cases are written and red; they are parked at
+  `testing/tests/import.test.ts.pending` (that suffix is outside the suite's glob, so
+  the gate stays honest) along with the `writeItemsYml` helper they need. Renaming that
+  file back to `.test.ts` is the whole of the work to resume. I did not edit
+  `entrypoint.test.ts`, because "never edited to fit the implementation" is the
+  non-negotiable and this is the textbook shape of the edit it forbids — the old case
+  became inconvenient exactly when a new slice arrived.
+- **What I'd recommend**: amend DE-19.3 to derive its list from the CLI rather than from
+  a literal — `introduce --interface-skill` (or each command's `--help`) already reports
+  `status: "not_implemented"`, so the sweep can ask the engine which commands are unbuilt
+  and assert the property over whatever comes back, including the empty set. That keeps
+  the case's real claim ("an unbuilt command says so, distinguishably from a typo") and
+  makes it retire itself as the comment always intended. Deleting the case outright would
+  lose that claim while `convention` is still unbuilt.
+- **Resolution**: <Ethan>
 
 ## Resolved
 

@@ -159,6 +159,37 @@ export function writeProfileYml(
   writeFileSync(filePath, lines.join("\n") + "\n");
 }
 
+/**
+ * Write an items `.yml` the way an Operator would for `import --from` (DE-19).
+ *
+ * The shape mirrors `add-item` in data form — an entity name and its attribute map — so
+ * an agent that has read `add-item --help` can write this file without a second lesson.
+ * Values are JSON-quoted, which is valid YAML and survives apostrophes, `=`, non-ASCII
+ * and newlines without a YAML writer (same reasoning as writeProfileYml).
+ */
+export function writeItemsYml(
+  filePath: string,
+  items: { entity: string; attributes?: Record<string, string> }[],
+): void {
+  const lines = ["items:"];
+  for (const item of items) {
+    lines.push(`  - entity: ${JSON.stringify(item.entity)}`);
+    const attributes = item.attributes ?? {};
+    if (Object.keys(attributes).length > 0) {
+      lines.push("    attributes:");
+      for (const [k, v] of Object.entries(attributes)) {
+        lines.push(`      ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
+      }
+    }
+  }
+  writeFileSync(filePath, lines.join("\n") + "\n");
+}
+
+/** Raw passthrough, for the malformed and partial cases a well-formed writer cannot make. */
+export function writeRaw(filePath: string, text: string): void {
+  writeFileSync(filePath, text);
+}
+
 /** Fresh temp sandbox per test. */
 export function makeSandbox(prefix = "cog-test-"): string {
   return mkdtempSync(path.join(tmpdir(), prefix));
