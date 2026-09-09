@@ -4,7 +4,7 @@
 
 import { query, type SDKMessage, type SDKUserMessage, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { exec } from "node:child_process";
-import { mkdtemp, mkdir, cp, readdir } from "node:fs/promises";
+import { mkdtemp, mkdir, cp, readdir, writeFile, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { Transcript } from "./transcript";
@@ -75,9 +75,16 @@ async function snapshotDir(dir: string): Promise<string[]> {
     .sort();
 }
 
-function execInSandbox(cmd: string, cwd: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+function execInSandbox(
+  cmd: string,
+  cwd: string,
+  pathPrefix?: string,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const env = pathPrefix
+    ? { ...process.env, PATH: `${pathPrefix}${path.delimiter}${process.env.PATH ?? ""}` }
+    : process.env;
   return new Promise((resolve) => {
-    exec(cmd, { cwd, windowsHide: true }, (err, stdout, stderr) => {
+    exec(cmd, { cwd, windowsHide: true, env }, (err, stdout, stderr) => {
       resolve({ stdout, stderr, exitCode: err ? (err.code as number) ?? 1 : 0 });
     });
   });
@@ -122,6 +129,19 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
   if (def.sandbox?.fixtures) {
     await cp(path.resolve(def.sandbox.fixtures), sandbox, { recursive: true });
   }
+  // The "install" step of the Walking Skeleton. A temp bin directory outside the sandbox,
+  // prepended to PATH: the agent can name the binary from anywhere and never learns where
+  // it lives, and the working directory it is judged on stays free of it.
+  let binDir: string | undefined;
+  if (def.agent.install && Object.keys(def.agent.install).length > 0) {
+    binDir = await mkdtemp(path.join(tmpdir(), `cog-bin-${def.name}-`));
+    for (const [name, contents] of Object.entries(def.agent.install)) {
+      const target = path.join(binDir, name);
+      await writeFile(target, contents);
+      await chmod(target, 0o755).catch(() => {});
+    }
+  }
+
   const sandboxBefore = await snapshotDir(sandbox);
 
   // Progress goes to stderr so it never pollutes stdout consumers; artifacts
@@ -160,6 +180,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
       CLAUDECODE: undefined,
       CLAUDE_CODE_ENTRYPOINT: undefined,
       CLAUDE_CONFIG_DIR: configDir,
+      PATH: binDir ? `${binDir}${path.delimiter}${process.env.PATH ?? ""}` : process.env.PATH,
       ...credentialEnv(),
     },
   };
@@ -180,7 +201,9 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     transcript: transcript.messages,
     assert: (cond, label) => gates.push({ turn: lastTurn.index, label, pass: !!cond }),
     fail: (label) => gates.push({ turn: lastTurn.index, label, pass: false }),
-    exec: (cmd) => execInSandbox(cmd, sandbox),
+    // Same PATH the agent has, so a gate can run the installed binary the way the agent
+    // does rather than reaching for one only the harness process can see.
+    exec: (cmd) => execInSandbox(cmd, sandbox, binDir),
   });
 
   // Segments. A turn marked `freshThread` opens a new session over the same sandbox, so
@@ -278,9 +301,11 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
   // any other turn.
   let violations: Violation[] = [];
   if (def.checkRegressions !== false) {
-    violations = regressions(checkpoints, (_from, to) => {
+    violations = regressions(checkpoints, (from, to) => {
       const at = Number(/after turn (\d+)/.exec(to.label)?.[1]);
-      return Number.isFinite(at) ? def.turns[at - 1]?.mayChange ?? [] : [];
+      if (!Number.isFinite(at)) return [];
+      const declared = def.turns[at - 1]?.mayChange ?? [];
+      return typeof declared === "function" ? declared(from) : declared;
     });
     // The counts are in the label because a vacuous pass and a real one read identically
     // otherwise: a scenario that never made a graph satisfies IN-5 perfectly, and a gate

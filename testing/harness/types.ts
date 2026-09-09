@@ -36,6 +36,20 @@ export interface ScenarioDefinition {
      * `[{ type: 'local', path: pluginDir }]`. Mirrors the SDK's SdkPluginConfig.
      */
     plugins?: PluginConfig[];
+    /**
+     * Executables to install for the in-loop agent: filename to file contents.
+     *
+     * Written to a temp directory that is prepended to the agent's PATH, and deliberately
+     * NOT into the sandbox. "Installed" means a program the agent can name, from anywhere,
+     * without knowing where it lives — and putting it in the working directory would both
+     * misrepresent that and leave a file in the very listing IN-6 checks for strays.
+     *
+     * Each entry is written verbatim, so a scenario that needs both a POSIX shim and a
+     * `.cmd` twin lists both. The harness does not translate one into the other: guessing
+     * how a shell resolves a name is exactly the thing that would fail silently, on one
+     * platform, in a paid run.
+     */
+    install?: Record<string, string>;
     /** Runaway brake: max agentic turns (maps to SDK maxTurns for the whole session). */
     maxTurnsPerMessage?: number;
     /** Runaway brake: max spend for the whole scenario. */
@@ -82,8 +96,17 @@ export interface TurnDef {
    *
    * Declared before the turn runs, and scoped to it. Deciding after the fact which changes
    * look intentional is the version of the invariant that can never fail.
+   *
+   * A function form exists because the entities in an agentic scenario are named by the
+   * agent, not by the scenario: a turn that asks the User's assistant to update the two
+   * games they mentioned cannot know in advance whether it wrote "Portal 2" or
+   * "Portal 2 (2011)". The function is handed the checkpoint taken *before* the turn and
+   * returns names from it, so the declaration is still made in advance and still names
+   * specific entities — it is resolved late, not decided late. Returning everything would
+   * turn the invariant off for that step, which is exactly what the list form prevents and
+   * what a reviewer should look for here.
    */
-  mayChange?: string[];
+  mayChange?: string[] | ((before: Checkpoint) => string[]);
   /** Runs after the agent finishes responding to this turn. Assertions are collected, never thrown. */
   gate?: (ctx: GateContext) => void | Promise<void>;
 }
