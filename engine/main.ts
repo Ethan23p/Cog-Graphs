@@ -792,9 +792,9 @@ if (command === "query") {
   // values. Every --attr must match and no --exclude may, which is what makes repeated
   // narrow queries a way to traverse — each attribute is a handhold.
   //
-  // NOTE: no v0.3.1 case exercises the filters. The grammar line and the selection
-  // strategy are both ratified in the doc, so the behavior is spec rather than
-  // invention, but the second layer does not currently pin it. Raised for Ethan.
+  // A filtered result is still the whole item: narrowing chooses which items come back,
+  // never which of their attributes do. Projecting down to the matched pairs would make
+  // query lossy exactly when an Operator is closing in on something. Pinned by DE-10.1.
   const items = readItems(db).filter((item) => {
     for (const [attribute, value] of Object.entries(include)) {
       if (item.attributes[attribute] !== value) return false;
