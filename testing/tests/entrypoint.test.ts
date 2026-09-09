@@ -71,3 +71,43 @@ describe("DE-19.2 (minted) — every invocation answers on a stream", () => {
     expect(error.next_step).toContain(BIN);
   });
 });
+
+describe("DE-19.3 (minted) — a command in the grammar but not yet built", () => {
+  // MINTED alongside DE-19.2. `import` and `convention` are in COMMANDS, DE-5 grades
+  // their --help as a deliverable complete with a runnable example, and running that
+  // example produced nothing on either stream at exit 1.
+  //
+  // The asymmetry is what makes it worse than a missing command: the CLI advertises
+  // these, so an agent has every reason to trust them, and gets less back than it would
+  // for a typo. Under the vertical loop some commands are always unbuilt, so "not built
+  // yet" needs to be a thing the interface can *say* — and it must be distinguishable
+  // from "does not exist", because those imply different next moves.
+  //
+  // This case is a scaffold with a deliberate lifetime: as DE-19/20/21 land, each
+  // command graduates out of UNBUILT and this stops covering it. The sweep is written
+  // over the set rather than the names so it empties itself honestly.
+  const unbuilt = ["import", "convention"];
+
+  for (const name of unbuilt) {
+    test(`${name} fails loudly rather than silently`, () => {
+      const cwd = makeSandbox();
+
+      // Invoked the way its own --help says to, so the case tracks what DE-5 promises.
+      const example = JSON.parse(runCli([name, "--help"], { cwd }).stdout).examples[0] as string;
+      const args = example.split(" ").slice(1);
+      const r = runCli(args, { cwd });
+
+      expect((r.stdout + r.stderr).trim().length).toBeGreaterThan(0);
+      expect(r.exitCode).not.toBe(EXIT.OK);
+      const error = JSON.parse(r.stderr);
+      for (const field of ERROR_FIELDS) {
+        expect(error[field]?.length ?? 0).toBeGreaterThan(0);
+      }
+      // Distinct from unknown_command: that one means "you typo'd", this one means
+      // "you read the help correctly and there is nothing behind it yet". An agent that
+      // conflates them retries with a different spelling forever.
+      expect(error.code).toBe("not_implemented");
+      expect(error.message).toContain(name);
+    });
+  }
+});

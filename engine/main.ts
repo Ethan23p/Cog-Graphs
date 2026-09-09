@@ -28,6 +28,22 @@ const PROFILE_FIELDS = ["namespace", "use-pattern", "description"] as const;
 /** The binary's own name, as it appears in every example and error the engine emits. */
 const BINARY = "cog-graphs";
 
+/**
+ * Commands the grammar documents that the engine has not built yet.
+ *
+ * Named explicitly rather than inferred from a missing branch, so the honesty is
+ * deliberate: an Operator is told "not yet" instead of meeting silence. Each entry
+ * leaves as its slice lands — `import` at DE-19/DE-20, `convention` at DE-21 — and the
+ * set going empty is what retires DE-19.3.
+ */
+const UNBUILT = new Set(["import", "convention"]);
+
+/** What to do in the meantime, per unbuilt command. Vague advice is not a next step. */
+const UNBUILT_NEXT_STEP: Record<string, string> = {
+  import: `Add the items one at a time for now: ${BINARY} add-item --entity <name> --attr key=value`,
+  convention: `The convention is seeded at initialize and shown by '${BINARY} introduce'; amending it from the CLI is not available yet.`,
+};
+
 const INTRO_SCOPE_SYSTEM = "system";
 const INTRO_SCOPE_INSTANCE = "instance";
 
@@ -435,7 +451,15 @@ if (!command || command === "--help" || (command === "help" && argv.length === 1
 
 if (command && flags.has("--help")) {
   const help = HELP[command];
-  if (help) succeed({ command, ...help });
+  if (help) {
+    // An unbuilt command says so in its own help, not only once the Operator has run it
+    // and failed. Reading the docs should be enough to learn this; driven off the same
+    // UNBUILT set, so the caveat disappears when the command lands.
+    const status = UNBUILT.has(command)
+      ? { status: "not_implemented", status_note: UNBUILT_NEXT_STEP[command] }
+      : {};
+    succeed({ command, ...help, ...status });
+  }
 }
 
 // An unrecognized command is where an agent's guess lands, so the error is written for
@@ -937,4 +961,21 @@ if (command === "introduce") {
   succeed({ scope: INTRO_SCOPE_SYSTEM, introduction: SYSTEM_INTRODUCTION });
 }
 
-process.exit(1);
+// Nothing above handled it, so the command is real, documented, and unbuilt.
+//
+// Under the vertical loop that state is normal rather than exceptional — some commands
+// are always ahead of the engine — so the interface has to be able to *say* it. Silence
+// was the old answer, and it was the worst one available: `--help` advertises these
+// commands with runnable examples, so an agent has every reason to trust them and got
+// less back than it would have for a typo.
+//
+// Distinct from unknown_command on purpose. That one means "you mistyped"; this means
+// "you read the help correctly and there is nothing behind it yet". An agent that
+// cannot tell them apart retries with a different spelling forever.
+const built = Object.keys(HELP).filter((name) => !UNBUILT.has(name));
+fail(
+  EXIT.INTERNAL,
+  "not_implemented",
+  `'${command}' is documented but not implemented yet in this build.`,
+  `Working commands: ${built.join(", ")}. ${UNBUILT_NEXT_STEP[command] ?? `Use one of those, or run '${BINARY} --help'.`}`,
+);
