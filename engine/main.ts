@@ -512,12 +512,37 @@ if (command && HELP[command]) {
   }
 }
 
-/** The value following a flag, e.g. `--profile ./p.yml`. */
+/**
+ * The value following a flag, e.g. `--profile ./p.yml`, or undefined if the flag was
+ * never written.
+ *
+ * A flag written *without* a value is not the same thing as a flag left off, and the two
+ * must not collapse into one `undefined` (DE-19.6). An Operator who writes `--dir` has
+ * stated an intention; if the value did not survive whatever produced the command line,
+ * a guess is the one response that cannot be right, because the guess is invisible.
+ * `--dir` defaulted to the working directory this way — silently putting the User's
+ * artifact somewhere other than where it was asked to go.
+ */
 function optionValue(flag: string): string | undefined {
   const at = argv.indexOf(flag);
   if (at === -1) return undefined;
+  return valueAfter(flag, at);
+}
+
+/** The token after position `at`, or a usage failure when there isn't a usable one. */
+function valueAfter(flag: string, at: number): string {
   const next = argv[at + 1];
-  return next && !next.startsWith("--") ? next : undefined;
+  if (next === undefined || next.startsWith("--")) {
+    fail(
+      EXIT.USAGE,
+      "missing_value",
+      `${flag} was given without a value.`,
+      command
+        ? `Write the value after the flag, or drop the flag: cog-graphs ${command} --help`
+        : "Write the value after the flag, or drop the flag.",
+    );
+  }
+  return next;
 }
 
 if (command === "initialize") {
@@ -744,8 +769,10 @@ function optionValues(flag: string): string[] {
   const out: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] !== flag) continue;
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) out.push(next);
+    // Same rule as optionValue, and it matters more here: a repeatable flag whose value
+    // went missing would otherwise drop one attribute out of several and still report
+    // success (DE-19.6).
+    out.push(valueAfter(flag, i));
   }
   return out;
 }
