@@ -249,7 +249,8 @@ const HELP: Record<string, Help> = {
     optional: { "--graph": "Which graph to ingest into, when the directory holds more than one." },
     examples: ["cog-graphs import --graph game-recs --from ./games.yml"],
     notes: [
-      "Partial with report: valid records are committed and invalid ones are rejected, never all-or-nothing. The report names each offender by identifier and by position, and the exit code is distinct from both clean success and total failure.",
+      "Partial with report: valid records are committed and invalid ones are rejected, never all-or-nothing. The exit code is distinct from both clean success and total failure, and the report arrives on stderr carrying 'ingested' and a 'rejected' list that names each offender by 'entity' and by 'index' — its zero-based position in the source's items list.",
+      "A record is rejected on the same terms add-item would refuse it: an entity the graph already holds, or one already named earlier in the same file. Fix the named records and re-run import on a .yml holding only those.",
     ],
   },
   "modify-item": {
@@ -596,15 +597,21 @@ function prettyLines(value: unknown, indent: string, depth = 0): string[] {
  * failure corrupting the parse, and every one of them carries code / message / next_step
  * — an error an agent cannot act on just costs it a turn.
  */
-function fail(status: number, code: string, message: string, next_step: string): never {
+function fail(
+  status: number,
+  code: string,
+  message: string,
+  next_step: string,
+  detail: Record<string, unknown> = {},
+): never {
   // --pretty covers failures too: an Operator who asked for readable output asked about
   // the whole surface, and an error is the moment they are most likely to be reading it
   // themselves. Only the braces go — what went wrong and what to do next are what make
   // the error actionable, so both survive the change of form (IN-11, DE-19.8).
   process.stderr.write(
     PRETTY
-      ? `${prettyText({ error: code, message, next_step })}\n`
-      : `${JSON.stringify({ code, message, next_step })}\n`,
+      ? `${prettyText({ error: code, message, next_step, ...detail })}\n`
+      : `${JSON.stringify({ code, message, next_step, ...detail })}\n`,
   );
   process.exit(status);
 }
@@ -1174,15 +1181,34 @@ if (command === "import") {
   const now = new Date().toISOString();
   let ingested = 0;
 
-  for (const record of records) {
+  // Every name the graph already holds, read once. The set is then *added to* as records
+  // land, which is what makes a record colliding with an earlier record in the same file
+  // rejected on the same terms as one colliding with the artifact — the Operator wrote
+  // both, and neither is a name the graph can hold twice (DE-20.2).
+  const taken = new Set(
+    (db.query("SELECT name FROM entity").all() as { name: string }[]).map((row) => row.name),
+  );
+  const rejected: { index: number; entity: string; reason: string }[] = [];
+
+  for (const [index, record] of records.entries()) {
     const item = (record ?? {}) as Record<string, unknown>;
     const entity = typeof item.entity === "string" ? item.entity : "";
     const attributes = (item.attributes ?? {}) as Record<string, unknown>;
+
+    // Rejected, not merged and not skipped in silence. add-item refuses an entity the
+    // graph already holds, and a bulk path that quietly updated it instead would be a
+    // second, laxer model of what an item is — with no report to tell the Operator that
+    // the item they thought they added is someone else's row now (DE-20).
+    if (taken.has(entity)) {
+      rejected.push({ index, entity, reason: "entity_exists" });
+      continue;
+    }
 
     const { lastInsertRowid } = insertEntity.run(entity, now);
     for (const [attribute, value] of Object.entries(attributes)) {
       insertAttr.run(lastInsertRowid as number, attribute, String(value));
     }
+    taken.add(entity);
     ingested++;
   }
   db.close();
@@ -1191,6 +1217,21 @@ if (command === "import") {
   // from the artifact in full every time, so a per-item rewrite would be N passes over a
   // file whose only correct content is the last one.
   writeSidecar(dbPath);
+
+  // Partial is reported as a structured error rather than as a success payload with a
+  // 'rejected' array in it. IN-9 gives the whole surface one rule — a non-zero exit puts
+  // one object on stderr and leaves stdout empty — and an agent piping stdout into a
+  // parser must not have a half-successful run corrupt the parse. So the report *is* the
+  // error object, with the counts carried on it (DE-20).
+  if (rejected.length > 0) {
+    fail(
+      EXIT.PARTIAL,
+      "partial_ingestion",
+      `${ingested} of ${records.length} records were ingested into ${namespace}; ${rejected.length} were rejected.`,
+      "Read 'rejected' — each entry names the offending entity and its zero-based index in the source's items list. Fix those records, then re-run import on a .yml holding only them.",
+      { graph: namespace, source: resolved, ingested, rejected },
+    );
+  }
 
   // The count is the whole of what a bulk Operator gets back — it cannot read the result
   // item by item — so it counts what landed, not what was offered.

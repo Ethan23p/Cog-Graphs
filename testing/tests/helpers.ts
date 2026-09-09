@@ -185,6 +185,39 @@ export function writeItemsYml(
   writeFileSync(filePath, lines.join("\n") + "\n");
 }
 
+/**
+ * Write an items `.yml` whose records need not be well-formed (DE-20).
+ *
+ * `writeItemsYml` cannot express the inputs the partial-ingestion cases are about — a
+ * record with no `entity` key at all, a record whose `entity` is a number. This emits
+ * whatever keys a record has, in the same block style, so a rejected record differs from
+ * an accepted one only in the way the case says it does.
+ */
+export function writeRecordsYml(filePath: string, records: Record<string, unknown>[]): void {
+  const lines = ["items:"];
+  for (const record of records) {
+    const entries = Object.entries(record);
+    if (entries.length === 0) {
+      lines.push("  - {}");
+      continue;
+    }
+    let first = true;
+    for (const [key, value] of entries) {
+      const lead = first ? "  - " : "    ";
+      first = false;
+      if (value !== null && typeof value === "object") {
+        lines.push(`${lead}${key}:`);
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          lines.push(`      ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
+        }
+      } else {
+        lines.push(`${lead}${key}: ${JSON.stringify(value)}`);
+      }
+    }
+  }
+  writeFileSync(filePath, lines.join("\n") + "\n");
+}
+
 /** Raw passthrough, for the malformed and partial cases a well-formed writer cannot make. */
 export function writeRaw(filePath: string, text: string): void {
   writeFileSync(filePath, text);
