@@ -25,6 +25,9 @@ const PROFILE_FIELDS = ["namespace", "use-pattern", "description"] as const;
  * never has to infer from the shape whether they were told about a graph or about the
  * system. Mirrors INTRO_SCOPE in the test contract.
  */
+/** The binary's own name, as it appears in every example and error the engine emits. */
+const BINARY = "cog-graphs";
+
 const INTRO_SCOPE_SYSTEM = "system";
 const INTRO_SCOPE_INSTANCE = "instance";
 
@@ -399,9 +402,52 @@ function fail(status: number, code: string, message: string, next_step: string):
   process.exit(status);
 }
 
+/**
+ * The overview: what this is, and every command there is.
+ *
+ * This is the front door. An agent given only the binary name types `cog-graphs --help`
+ * first, and what it gets back is the whole of its priming. Naming every command matters
+ * more than it looks — an agent that has to guess which commands exist guesses the ones
+ * it knows from other tools, and then reports that the tool is broken.
+ */
+function overview() {
+  return {
+    binary: BINARY,
+    summary:
+      "Spawn and manipulate Cog Graphs: persistent, structured stores of entities and the attribute/value pairs recorded about them. Each graph is a .sqlite file in a directory you choose, with a derived .md beside it for inspection.",
+    commands: Object.entries(HELP).map(([name, help]) => ({ name, summary: help.summary })),
+    getting_started: [
+      `${BINARY} introduce --interface-skill   # the full primer for driving this directly`,
+      `${BINARY} introduce                      # what the graph in this directory is for`,
+      `${BINARY} <command> --help               # usage and a runnable example`,
+    ],
+    output:
+      "Every command answers with JSON on stdout; failures write a JSON error to stderr carrying code, message and next_step. Add --pretty for the human-readable form.",
+  };
+}
+
+// Asking a tool what it is has not gone wrong, so the overview is a success rather than
+// a usage error. `--help` with no command lands here too: `argv[0]` is the flag itself,
+// which is why the command-level help check below never fired for it.
+if (!command || command === "--help" || (command === "help" && argv.length === 1)) {
+  succeed(overview());
+}
+
 if (command && flags.has("--help")) {
   const help = HELP[command];
   if (help) succeed({ command, ...help });
+}
+
+// An unrecognized command is where an agent's guess lands, so the error is written for
+// recovery rather than for the record: it names every command that does exist, which
+// turns a dead end into one more turn.
+if (!HELP[command]) {
+  fail(
+    EXIT.USAGE,
+    "unknown_command",
+    `'${command}' is not a ${BINARY} command.`,
+    `The commands are: ${Object.keys(HELP).join(", ")}. Run '${BINARY} --help' for an overview, or '${BINARY} <command> --help' for one command's usage.`,
+  );
 }
 
 // Unknown options are rejected before anything else runs, so a typo never half-executes.
