@@ -12,3 +12,4 @@ testing/artifacts/
 
 # test sandboxes (helpers.ts writes here); never part of the repo
 testing/.scratch/
+.scratch-review/
