@@ -36,6 +36,13 @@ that survives by becoming unfalsifiable is worse than a deleted one, because it 
 costs a reader their attention and now teaches them nothing. The file getting shorter is
 the mechanism working.
 
+**Citations name a symbol, not a line number.** Line numbers have gone stale twice in two
+sessions — every slice that touches `main.ts` moves them, and a wrong line number is worse
+than none because it sends a reader to a real line that says something else. A symbol name is
+one `grep` and it survives the file being rearranged. Corrected wholesale at DE-21 after five
+of eighteen citations had drifted; verified by script rather than by eye, since eye is how
+they drifted.
+
 **A probe marked *reasoned* is a claim that has not been run.** Those are the weak lines
 by construction and are labelled so a reader can discount them without having to guess
 which ones they are. Turning one into a real probe is always an improvement; so is
@@ -76,7 +83,7 @@ Consequences, each a separate slice before the pattern was obvious:
 - **Escaping happens at render time, never at write time.** The database keeps exactly
   what it was given; the rendering is what has to be honest about it. Escaping on the way
   in would corrupt the authoritative face to protect a derived one.
-  *Cited:* DE-19.7; `inline()` at `engine/main.ts:322`, called only from `renderSidecar`
+  *Cited:* DE-19.7; `inline()` at `engine/main.ts`, called only from `renderSidecar`
   and `prettyLines`. *Probe:* move the `inline()` call into the `add-item` INSERT path —
   DE-23 goes red on source fidelity while DE-19.7 stays green, which is the shape of the
   mistake.
@@ -107,7 +114,7 @@ reads `undefined`, `process.exit(undefined)` exits **0**, and the command prints
 good error on stderr while telling the shell it succeeded. Every case asserting an exit code
 passes against that. This shipped, briefly, and was found by `tsc` — which had been flagging
 six call sites the whole time. `bun run check` exists because of it.
-*Cited:* `EXIT` at `engine/main.ts:483`; claim EN1/EN2 below. *Probe:* delete one key from
+*Cited:* `EXIT` at `engine/main.ts`; claim EN1/EN2 below. *Probe:* delete one key from
 `EXIT` — `bun run typecheck` fails immediately and `bun test` stays green, which is the whole
 argument for the gate.
 
@@ -123,14 +130,14 @@ Otherwise a success becomes something the Operator must parse two streams to und
 IN-9's "one JSON object on one stream" stops holding. `runtimeWarnings` collects warnings
 raised by machinery rather than by the command; `succeed()` merges them in, preserving the
 `warnings` key when a command supplied one *even if empty*, because DE-7 reads it either way.
-*Cited:* `succeed()` at `engine/main.ts:501`; DE-7, IN-4.1. *Probe:* write a warning to
+*Cited:* `succeed()` at `engine/main.ts`; DE-7, IN-4.1. *Probe:* write a warning to
 stderr on a successful command — IN-9 goes red. *Probe:* drop the empty-array preservation —
 DE-7 goes red on the absent key.
 
 **`next_step` names something to do.**
 A command, a flag, or a file. It is the field that makes an error worth having, and the first
 one to decay into a restatement of the message.
-*Cited:* IN-11; `fail()` at `engine/main.ts:599`. *Probe:* replace every `next_step` with
+*Cited:* IN-11; `fail()` at `engine/main.ts`. *Probe:* replace every `next_step` with
 "Something went wrong." — **23 cases go red**, run 2026-09-09 against 278 tests. The count
 is what makes this a real constraint rather than a preference.
 
@@ -145,7 +152,7 @@ Asking a tool what it is has not gone wrong. A zero-priming agent typing the bin
 the most sensible thing available; answering with a failure code teaches it otherwise. Raised
 by `/code-review` as a probable bug and kept deliberately.
 *Cited:* IN-10's table, which pins it with the reasoning inline; `overview()` at
-`engine/main.ts:620`. *Probe:* return `EXIT.USAGE` from the front door — IN-10's `bare` row
+`engine/main.ts`. *Probe:* return `EXIT.USAGE` from the front door — IN-10's `bare` row
 goes red. That the case had to be *argued* rather than fixed is why this entry exists.
 
 **A leading `--flag` that isn't global is `unknown_option`, not `unknown_command`.**
@@ -160,10 +167,19 @@ different next moves. An agent that cannot tell them apart retries with a differ
 forever. The set of unbuilt commands is one `Set` in the engine, and every case that cares
 derives its list from `--help` rather than naming commands, so the whole apparatus retires
 itself when the set empties.
-*Cited:* DE-19.3 (amended 2026-09-09, see `testing/DISPUTES.md`), DE-19.6.1, IN-9/10/11;
-`UNBUILT` at `engine/main.ts:59`. *Probe:* empty `UNBUILT` — `invariants.test.ts` drops from
-125 tests to 121 with **0 failures**. Run on 2026-09-09. That it goes quiet rather than red
-is the property being claimed; a literal list would have gone red instead.
+
+**`UNBUILT` is empty as of DE-21 (2026-09-09), and the apparatus has retired on schedule.**
+The set and its machinery are kept rather than deleted: they are what the next unbuilt
+command will need, and the retirement is only meaningful while the mechanism that would
+un-retire it still works. The probe therefore runs in the other direction now, and it is a
+better probe than the original — it shows the sweep is live rather than merely absent.
+*Cited:* DE-19.3 (amended 2026-09-09, see `testing/DISPUTES.md`), DE-19.6.1, DE-21,
+IN-9/10/11; `UNBUILT` at `engine/main.ts`. *Probe:* put a **built** command back into
+`UNBUILT` (`new Set(["convention"])`) — the suite grows from 302 tests to 307 as the derived
+rows come back, and **3 go red**: DE-21's "no command reports itself unbuilt any more",
+DE-19.3's "convention fails loudly rather than silently", and IN-10's "unbuilt command"
+row. Run 2026-09-09. Two properties in one command: the sweep revives from the CLI rather
+than from a literal, and a `UNBUILT` entry that is not true is caught rather than believed.
 
 ### Argument parsing
 
@@ -173,7 +189,7 @@ purpose is controlling where the User's artifact lands, doing the opposite of wh
 at exit 0. An Operator who writes a flag has stated an intention; if the value did not survive
 whatever produced the command line, a guess is the one response that cannot be right, because
 the guess is invisible.
-*Cited:* DE-19.6; `valueAfter()` at `engine/main.ts:766` — the single choke point, with
+*Cited:* DE-19.6; `valueAfter()` at `engine/main.ts` — the single choke point, with
 `optionValue` and `optionValues` both routing through it. *Probe:* have `optionValue` return
 `undefined` instead of failing — DE-19.6 goes red.
 
@@ -185,7 +201,7 @@ ignores the broken thing just written. It is also the likelier real defect, beca
 lost to shell quoting or a template substitution leaves exactly that shape behind. Deciding
 this per command is how the rule goes selectively true, so the check is uniform across the
 grammar.
-*Cited:* DE-19.6.1; the pass at `engine/main.ts:705`, ahead of the required-flag check.
+*Cited:* DE-19.6.1; the `documented`/`valueless` pass in `engine/main.ts`, ahead of the required-flag check.
 *Probe:* move the pass below the required-flag check — DE-19.6.1 goes red on
 `import --graph`. Landed 2026-09-09 as part of DE-19; before it, that invocation answered
 `missing_option`.
@@ -194,14 +210,14 @@ grammar.
 `--pretty query` and `query --pretty` are the same request. Reading `argv[0]` meant
 `cog-graphs --pretty` — advertised verbatim in the overview's own output — was answered
 "'--pretty' is not a cog-graphs command".
-*Cited:* DE-19.8.1; the `commandIndex` derivation at `engine/main.ts:32`. *Probe:*
+*Cited:* DE-19.8.1; the `commandIndex` derivation at `engine/main.ts`. *Probe:*
 restore `argv[0]` — DE-19.8.1 goes red.
 
 **`--attr key=value` splits on the *first* `=` only.**
 Splitting on every `=` and rejecting the rest refuses ordinary values: a URL with a query
 string, a formula. Source fidelity is the doc's default assumption, so the engine does not
 get to narrow what a value may contain.
-*Cited:* DE-23; `parseAttrs()` at `engine/main.ts:1071`. *Probe:* split on every `=` and
+*Cited:* DE-23; `parseAttrs()` at `engine/main.ts`. *Probe:* split on every `=` and
 reject more than two parts — DE-23 goes red.
 
 **`modify-item` sets the named attributes and leaves the rest alone.**
@@ -209,7 +225,7 @@ The tempting shortcut — delete the entity's rows, write the given pairs as the
 is indistinguishable from correct on a single-attribute item and silently erases everything
 else on any other. Since the Operator names only what changed, that shortcut destroys exactly
 the accumulated knowledge the graph exists to hold.
-*Cited:* DE-14/DE-15; the upsert at `engine/main.ts:1234`. *Probe:* replace the upsert with
+*Cited:* DE-14/DE-15; the `ON CONFLICT` upsert in `modify-item`. *Probe:* replace the upsert with
 delete-then-insert — DE-15 goes red only because it uses a multi-attribute entity, which is
 why it does.
 
@@ -220,7 +236,7 @@ An entity and its attribute map, so an agent that has read `add-item --help` can
 without a second lesson, and the two surfaces cannot drift into different models of what an
 item is. The doc ratifies the grammar and the flow (RU-6) and never says what is in the file,
 so this shape is owned here rather than derived.
-*Cited:* DE-19; `import` at `engine/main.ts:1131`. *Probe:* none — this is a design choice,
+*Cited:* DE-19; the `import` branch in `engine/main.ts`. *Probe:* none — this is a design choice,
 not a claim about the code, and it is listed under *Owed to Ethan* for ratification rather
 than defended here. An entry with no probe must say so.
 
@@ -233,6 +249,77 @@ wasteful, not wrong, exactly as write-if-different makes directory-wide regenera
 wasteful rather than wrong (see IN-7 below). Recorded as a preference with no test behind
 it, which is what it is.
 
+**A partial ingestion reports as a structured error on stderr, not as a success payload.**
+The obvious shape is exit 0 with a `rejected` array in the stdout payload. IN-9 forbids it:
+one rule for the whole surface says a non-zero exit puts one object on stderr and leaves
+stdout empty, and an agent piping stdout into a parser must never have a half-successful run
+corrupt the parse. So the report *is* the error object — `fail()` grew an optional `detail`
+argument to carry `ingested` and `rejected` on it — rather than the surface growing one rule
+plus an exception for the only command that can be half-right.
+*Cited:* DE-20, IN-9, IN-11; the partial branch in `import`, and `fail()` at
+`engine/main.ts`. *Probe:* move the report to `succeed()` — DE-20's "the report is a
+structured error" and IN-10's "partial ingestion" row both go red.
+
+**What a bulk record must be is taken from `add-item`, never invented.**
+An entity the graph already holds is refused under `entity_exists`, the same code the single
+path uses; a record with no name is refused under `missing_value`, again `add-item`'s. The
+rule is not "be strict", it is "be identical" — a bulk path stricter *or* laxer than the
+single path forces an Operator to learn which one it is talking to. A whitespace-only name is
+therefore accepted here, because `add-item` accepts it.
+*Cited:* DE-20, DE-20.1. *Probe:* accept a colliding record as an update — DE-20's "the
+offender changed nothing" goes red.
+
+**A record with no entity reports `entity: null`, and one whose entity is not a string gets
+its own code.**
+An empty string is indistinguishable from a genuine empty name, so the report says the record
+had no identifier and the index becomes the only handle. `entity: 2001` is a game called 2001
+that YAML read as a number; the fix is quoting, which is a different action from naming, so it
+is `invalid_entity` rather than `missing_value`. Coercing it silently was the alternative and
+it is worse — a value this program invented, sitting in the Operator's data with nothing
+saying so.
+*Cited:* DE-20.1. *Probe:* restore `typeof item.entity === "string" ? item.entity : ""` —
+three of DE-20.1's four cases go red, including the one where two nameless records collide
+with each other and the report blames `entity_exists` on a name nobody wrote.
+
+**The taken-names set grows as records land, rather than being a snapshot.**
+A file naming the same entity twice is refused on its second mention exactly as it would be
+against the artifact. Comparing against a snapshot read once is the obvious implementation and
+it lets the duplicate through to SQLite, where the UNIQUE constraint kills the process
+mid-batch — total collapse on one bad record, which is what partial-with-report exists to
+replace.
+*Cited:* DE-20.2. *Probe:* delete `taken.add(entity)` — both DE-20.2 cases go red. Note that
+only one of them did until the probe was run: the crash left the artifact holding exactly the
+rows the other case asserted, so it gained an exit-code assertion. A count that is right
+because the program died before it could be wrong is not a claim.
+
+**Nothing-ingested is still partial; "total failure" means the import itself failed.**
+DE-20's sub-bullet invites a fourth outcome for a batch where nothing landed. Declined: the
+exit alphabet has no code for it, and inventing one hands an agent a branch for an outcome
+`ingested: 0` already states exactly. A missing source (2) and an unparseable one (1) are the
+total failures — distinct in kind, since nothing was offered and there is nothing to report
+per record.
+*Cited:* DE-20.3. *Probe:* give the all-rejected case its own exit code — DE-20.3's first
+case goes red, and IN-10's table rejects the new label as unlisted.
+
+### The convention
+
+**Amending the convention appends; it never overwrites.**
+The schema said so before the command existed — `convention` is an ordered table with an
+autoincrementing `seq`, not a single row. An Operator who learns in week three that ratings
+run 1-10 rather than 1-5 is recording something that *became* true, and the earlier
+expectation is how the items already in the graph are to be read. Overwriting would silently
+re-date every one of them.
+*Cited:* DE-21; `convention` in `engine/main.ts`, and the `convention` table in `SCHEMA`.
+*Probe:* make `--append` replace the last row — DE-21's ordering case goes red, and so does
+the `introduce` read-back.
+
+**The amend answers with the whole convention, and rewrites the sidecar only on a write.**
+An agent that amends needs to know what the graph now says about itself before its next
+write; returning only the addition costs it a second call. And a read is a read — regenerating
+the derived face from a command that changed nothing is the IN-4.1 failure.
+*Cited:* DE-21, IN-4.1. *Probe:* return `{ appended }` instead of the list — DE-21's "the
+amend call itself answers with the whole convention" goes red.
+
 ### The inspectable face
 
 **`inline()` collapses CR/LF/CRLF to a visible `\n` and touches nothing else.**
@@ -240,7 +327,7 @@ Backslashes are deliberately *not* escaped: `C:\games` is an ordinary value in t
 doubling it would make every sidecar pay for the rare case. The accepted tradeoff is that a
 value containing the literal characters `\n` renders identically to one containing a newline —
 ambiguous, but structurally harmless, which is the property that matters.
-*Cited:* DE-19.7; `inline()` at `engine/main.ts:322`. *Probe:* also escape backslashes —
+*Cited:* DE-19.7; `inline()` at `engine/main.ts`. *Probe:* also escape backslashes —
 nothing goes red, which is the point: the choice is not pinned by a case, so it is recorded
 here instead. Reversing it is cheap and legitimate; doing so by accident is what this entry
 prevents.
@@ -258,7 +345,7 @@ attack — there is no legitimate content being refused. An attribute value is t
 data, and refusing it would be the engine putting words in their mouth. Escape data; reject
 identifiers. Both interpolations are *also* escaped, so a future loosening of the validator
 cannot forge a heading on its way to the page.
-*Cited:* DE-19.4, DE-19.7.1; the control-character test at `engine/main.ts:861`.
+*Cited:* DE-19.4, DE-19.7.1; the control-character test in the namespace validator.
 *Probe:* drop the control-character test — DE-19.7.1 goes red. *Probe:* apply the same
 rejection to attribute values — DE-23 goes red, which is the asymmetry being asserted.
 
@@ -267,7 +354,7 @@ The sidecar is a pure function of the artifact, so an identical rewrite costs an
 nothing — and an mtime that moves when nothing changed is a lie told to anyone watching the
 directory. It is also what makes IN-7's isolation guarantee *structural* rather than
 incidental, and what makes regeneration safe on the read path.
-*Cited:* IN-7; `writeSidecar()` at `engine/main.ts:406`. *Probe:* write unconditionally —
+*Cited:* IN-7; `writeSidecar()` at `engine/main.ts`. *Probe:* write unconditionally —
 IN-7 goes red. Note the converse does **not** hold: see the IN-7 entry under failure
 patterns, where this exact property defeated the case's own stated rationale.
 
@@ -288,7 +375,7 @@ That depth is a real boundary rather than a convenient one: the top-level fields
 are text the engine wrote — the primer, the introduction — and reflowing them is the entire
 reason `--pretty` exists. Everything nested below is text it was handed. Reflowing *that* lets
 an attribute value of `count: 999` render as a field the payload does not have.
-*Cited:* DE-19.7.1, DE-19.8.2; `prettyLines()` at `engine/main.ts:544`. *Probe:* reflow at
+*Cited:* DE-19.7.1, DE-19.8.2; `prettyLines()` at `engine/main.ts`. *Probe:* reflow at
 every depth — DE-19.7.1 goes red on the forged field.
 
 **Emptiness is rendered, not omitted.**
@@ -302,7 +389,7 @@ case where the reader most needs it is the case where it disappears.
 **The renderer walks the payload generically.**
 No command's shape is known to it, so a command added later is readable without anyone
 remembering to teach it.
-*Cited:* `prettyText()` at `engine/main.ts:527`; DE-19.8's sweep. *Probe:* `import` landed in
+*Cited:* `prettyText()` at `engine/main.ts`; DE-19.8's sweep. *Probe:* `import` landed in
 DE-19 with no `--pretty` work at all and IN-9's `--pretty` rows covered it immediately. Run
 on 2026-09-09 — this is the claim being observed rather than argued.
 
@@ -330,8 +417,8 @@ A path that does not exist cannot be `realpath`'d, so where the temp root is a s
 (macOS: `/var/folders` behind `/private/var`) the guard compared an unresolved path against a
 resolved one and did not fire. Temp-ness is a property of where a directory sits, so the
 ancestor answers the same question with a path the filesystem can speak about.
-*Cited:* DE-7.1; `nearestExisting()` at `engine/main.ts:453`, used by `isUnderTempRoot()` at
-`engine/main.ts:439`. *Probe:* *reasoned on this machine.* The symlink shape does not exist on
+*Cited:* DE-7.1; `nearestExisting()` at `engine/main.ts`, used by `isUnderTempRoot()` at
+`engine/main.ts`. *Probe:* *reasoned on this machine.* The symlink shape does not exist on
 Windows, so the fix cannot be shown red here. It is retained because the reasoning is sound and
 the cost is one function; a macOS run would settle it. Flagged rather than claimed.
 
@@ -416,7 +503,7 @@ re-check — no API spend. An unverifiable row does not belong in this table.
 | **EN5** | A read-only sidecar that is *stale* makes an unguarded `writeSidecar` throw `EPERM`; a read-only sidecar that is *current* does not. | Write-if-different means the crash only reproduces when content actually differs. Anyone re-testing IN-4.1 will otherwise conclude it was never broken. | Edit the `.md`, `chmod 0o444` it, run `query`. |
 | **EN6** | `Bun.YAML.parse` handles both the profile and the items formats with no dependency. | The repo adds no external deps. JSON-quoted values in the fixtures are valid YAML and survive apostrophes, `=`, non-ASCII and newlines without a YAML writer. | `writeProfileYml` round-trips in DE-6/DE-23; `writeItemsYml` in DE-19, landed 2026-09-09. |
 | **EN7** | On POSIX a filename containing a newline is creatable. | Why the namespace validator rejects control characters rather than relying on the filesystem to. | **Reasoned, not observed** — not reproducible on Windows, which is exactly why it needed writing down. Weakest row in the table; a POSIX run settles it. |
-| **EN8** | Emptying `UNBUILT` drops `invariants.test.ts` from 125 tests to 121 with 0 failures. | Proves the unbuilt-command rows are derived from the CLI rather than incidentally passing, and that they retire quietly instead of going red. | Edit `UNBUILT` to `new Set([])`, run `bun test testing/tests/invariants.test.ts`. Run 2026-09-09. |
+| **EN8** | With `UNBUILT` empty (the standing state since DE-21), returning a *built* command to it grows the suite from 302 tests to 307 and reds exactly 3. | The five revived tests prove the sweep is derived from the CLI rather than absent; the three failures prove a false `UNBUILT` entry is caught rather than believed. Superseded the original measurement, which could only show the rows going quiet. | Edit `UNBUILT` to `new Set(["convention"])`, run `bun test testing/tests`. Run 2026-09-09. |
 
 ---
 
@@ -431,8 +518,13 @@ re-check — no API spend. An unverifiable row does not belong in this table.
   "unbuilt command" row named `import` in a literal — the identical defect Ethan resolved in
   DE-19.3 — in a file that dispute did not name. Recorded in `testing/DISPUTES.md`; confirm or
   reverse.
-- **Minted-case numbering.** Six cases use subject-based sub-numbering (DE-7.1, IN-4.1) rather
-  than the mint-by-slice rule. Recorded as an open question in `CLAUDE.md`.
+- **Minted-case numbering.** Seven cases use subject-based sub-numbering (DE-7.1, IN-4.1,
+  IN-10.1) rather than the mint-by-slice rule. Recorded as an open question in `CLAUDE.md`.
+  DE-20.1/.2/.3 are neutral on it — found at DE-20 and extending DE-20, so both rules agree.
+- **`index` is zero-based, and that is my call.** DE-20 asks the report to name an offender
+  "by position", which is ambiguous between the ordinal a human counts and the subscript an
+  agent indexes with. The field is named `index` so the name settles it, and the reader is an
+  agent about to go back into the array it just wrote. Ratify or flip.
 - **Two entries above have no probe and say so** — the `items.yml` shape and the once-at-the-end
   sidecar write. Both are preferences rather than pinned behavior. If either matters, it wants
   a case; if neither does, they can come out.
