@@ -67,6 +67,12 @@ lists every case there is, in slice order. Nothing else needs to be remembered.
 full ingestion at the start of a session is the intended way to hold it. If the two ever
 disagree, the doc wins and the extract is stale.
 
+`engine/IMPLEMENTATION.md` is the other half of that state: the decisions the engine
+embodies, why each was taken, what was rejected, and the failure patterns that keep
+recurring. Read it before changing engine behavior — most of what looks like tidying in
+`main.ts` is load-bearing, and that file says which parts and why.
+`testing/harness/IMPLEMENTATION.md` does the same for the eval runtime.
+
 **One slice at a time, vertically.** A slice is one case, start to finish:
 
 1. Pick the next case from `testing/CASES.md`, in slice order.

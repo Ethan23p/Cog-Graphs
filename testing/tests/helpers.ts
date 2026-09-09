@@ -3,7 +3,7 @@
 // Tests invoke the CLI as a subprocess — never importing engine or library code.
 // That is deliberate: the CLI is the UX and its user is an agent, so the contract
 // under test is the process boundary (argv in; stdout/stderr/exit code out), which
-// is also the only way to assert real exit codes (DESIGN.md E4).
+// is also the only way to assert real exit codes (testing/harness/IMPLEMENTATION.md E4).
 //
 // Contract source: the `Cog-Graphs` page in the `Logseq-DB-Aurelius` graph. There is
 // no local CONTRACTS.md yet; when test cases are written, the assertions they encode
@@ -265,7 +265,7 @@ export function readSidecar(sidecarPath: string): string {
   return norm(readFileSync(sidecarPath, "utf8"));
 }
 
-/** LF-normalize for content comparison (see DESIGN.md G1). */
+/** LF-normalize for content comparison (see testing/harness/IMPLEMENTATION.md G1). */
 export function norm(s: string): string {
   return s.replaceAll("\r\n", "\n");
 }

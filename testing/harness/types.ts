@@ -67,7 +67,7 @@ export interface GateContext {
   fail(label: string): void;
   /**
    * Run a subprocess in the sandbox (for Cog Graph introspection, e.g. sqlite
-   * queries, and for any gate that needs a real exit code — see DESIGN.md E4).
+   * queries, and for any gate that needs a real exit code — see testing/harness/IMPLEMENTATION.md E4).
    */
   exec(cmd: string): Promise<{ stdout: string; stderr: string; exitCode: number }>;
 }

@@ -74,6 +74,28 @@ to make a suite lie.
   lose that claim while `convention` is still unbuilt.
 - **Resolution**: <Ethan>
 
+### Stale reference — a frozen eval file names `DESIGN.md`, which no longer exists
+- **Raised**: 2026-09-09 by Claude
+- **Not a dispute about a case's claim** — it is a dispute about a comment inside a
+  frozen file, and the freeze does not distinguish the two.
+- **The situation**: `engine/DESIGN.md` and `testing/harness/DESIGN.md` were renamed to
+  `IMPLEMENTATION.md`, and every reference was updated to be path-qualified, since the
+  two files now share a basename. One reference lives in `testing/evals/eval_smoke.ts`:
+  `// stats, sandbox isolation, and auth (DESIGN.md E5).` That file matches
+  `testing/evals/*.ts` and is frozen, so `bun run guard` rejected the rewrite as a
+  removed line.
+- **What I did instead**: reverted that one file. The comment still says `DESIGN.md` and
+  now points at nothing. Everywhere else says `testing/harness/IMPLEMENTATION.md`.
+- **Why it is worth an entry rather than a shrug**: the freeze is doing exactly its job
+  here — it cannot tell a prose comment from an assertion, and I would not want a guard
+  that could, because "it was only a comment" is how the first quiet edit always
+  introduces itself. The cost is one stale pointer.
+- **What I'd recommend**: amend the comment to
+  `(testing/harness/IMPLEMENTATION.md E5)` in the same commit as the resolution, so the
+  history shows a frozen file changed by decision. Or leave it — E5 is still findable by
+  its ID, which is the part that matters.
+- **Resolution**: <Ethan>
+
 ## Resolved
 
 _None._

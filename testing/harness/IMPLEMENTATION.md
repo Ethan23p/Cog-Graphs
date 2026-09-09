@@ -1,4 +1,4 @@
-# Eval Harness Runtime — Design
+# Eval Harness Runtime — Implementation
 
 > **Status**: adapted 2026-08-28 for Cog-Graphs from the DKB Library harness
 > (v1 design authored 2026-07-17 by Fable with Ethan). Ported near-verbatim; the
@@ -203,7 +203,7 @@ transcript — no API spend, no network. To refresh the transcript first (~$0.02
 
 ```
 testing/harness/
-  DESIGN.md          # this file
+  IMPLEMENTATION.md  # this file
   runtime.ts         # runScenario + session driver (ALL SDK imports live here)
   types.ts           # ScenarioDefinition, TurnDef, GateContext, ScenarioResult, Stats
   transcript.ts      # message capture, parsing into per-turn views, md rendering
