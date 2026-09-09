@@ -403,8 +403,27 @@ function renderSidecar(dbPath: string): string {
 function writeSidecar(dbPath: string): void {
   const sidecar = path.join(path.dirname(dbPath), `${path.basename(dbPath, ".sqlite")}.md`);
   const rendered = renderSidecar(dbPath);
-  if (existsSync(sidecar) && readFileSync(sidecar, "utf8") === rendered) return;
-  writeFileSync(sidecar, rendered);
+  try {
+    if (existsSync(sidecar) && readFileSync(sidecar, "utf8") === rendered) return;
+    writeFileSync(sidecar, rendered);
+  } catch (cause) {
+    // Which face is authoritative decides this. The artifact is; the sidecar is a view of
+    // it. So a view that cannot be refreshed is a warning, never a failure — the answer
+    // the command gives is still correct, and on a write the artifact has already been
+    // committed, so failing here would report a loss that did not happen and invite the
+    // Operator to redo work that is already done (IN-4.1).
+    //
+    // The User who hits this is usually the careful one: the file's own banner says
+    // "Derived file — do not edit", so they made it read-only. A synced folder or a
+    // read-only mount arrives at the same place without anyone deciding anything.
+    runtimeWarnings.push({
+      code: "sidecar_unwritable",
+      message:
+        `The derived ${path.basename(sidecar)} could not be rewritten (${(cause as Error).message}), so it no longer ` +
+        `reflects the graph. Nothing was lost: everything real lives in ${path.basename(dbPath)}, and this command's answer is unaffected.`,
+      next_step: `Make ${path.basename(sidecar)} writable, or delete it, then run any command against this graph to regenerate it.`,
+    });
+  }
 }
 
 /**
@@ -468,7 +487,20 @@ const EXIT = {
   INTERNAL: 6,
 } as const;
 
+/**
+ * Warnings raised by the machinery rather than by the command, collected as they happen
+ * and merged into whatever payload is on its way out (IN-4.1). A warning about the
+ * derived face belongs in the answer of the command that noticed, not on stderr — success
+ * stays one parseable object on one stream (IN-9).
+ */
+const runtimeWarnings: { code: string; message: string; next_step: string }[] = [];
+
 function succeed(payload: Record<string, unknown>): never {
+  // The key is preserved when the command supplied one, even empty: initialize always
+  // reports a warnings array and DE-7 reads it either way.
+  const supplied = Object.prototype.hasOwnProperty.call(payload, "warnings");
+  const warnings = [...((supplied ? payload.warnings : []) as unknown[]), ...runtimeWarnings];
+  if (supplied || warnings.length > 0) payload = { ...payload, warnings };
   process.stdout.write(PRETTY ? `${prettyText(payload)}\n` : `${JSON.stringify(payload)}\n`);
   process.exit(EXIT.OK);
 }
