@@ -73,6 +73,18 @@ recurring. Read it before changing engine behavior — most of what looks like t
 `main.ts` is load-bearing, and that file says which parts and why.
 `testing/harness/IMPLEMENTATION.md` does the same for the eval runtime.
 
+Both are held to one standard, and it is a hard rule rather than a style note: **every
+claim carries a probe — a specific change to make, and the specific case expected to go
+red.** A fresh instance with no memory of this project must be able to pick any entry,
+run its probe, and learn in one command whether the entry earns its space. If the probe
+is run and nothing goes red, the claim is not load-bearing and **the entry is deleted,
+not softened** — a claim that survives by becoming unfalsifiable still costs a reader
+their attention and no longer teaches them anything. That is how a long internal document
+stays worth reading: it defends its own length the same way the suite does. Every
+measured count carries the date it was measured; one without a date has not been checked.
+A probe marked *reasoned* has not been run, and is labelled so it can be discounted
+without guessing.
+
 **One slice at a time, vertically.** A slice is one case, start to finish:
 
 1. Pick the next case from `testing/CASES.md`, in slice order.
