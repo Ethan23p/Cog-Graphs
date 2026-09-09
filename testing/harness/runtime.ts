@@ -5,7 +5,7 @@
 import { query, type SDKMessage, type SDKUserMessage, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { exec } from "node:child_process";
 import { mkdtemp, mkdir, cp, readdir, writeFile, chmod } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import * as path from "node:path";
 import { Transcript } from "./transcript";
 import { capture, regressions, type Checkpoint, type Violation } from "./checkpoint";
@@ -122,8 +122,30 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
   const gates: GateResult[] = [];
   let fatalError: string | undefined;
 
-  // Fresh sandbox.
-  const sandbox = await mkdtemp(path.join(tmpdir(), `cog-eval-${def.name}-`));
+  // Fresh sandbox — in a plainly-named directory under the user's home, and the name is
+  // load-bearing.
+  //
+  // THE PATH IS PART OF THE SCENARIO, which took two paid runs to learn. The sandbox
+  // started under the platform temp root, where DE-7 makes the engine warn that the graph
+  // will vanish — so every scenario tripped a warning that existed only because of the
+  // harness. In the run of 2026-09-09T20-54 the agent did the right thing with it: stopped,
+  // explained that Windows cleans that directory without telling anyone, and asked the User
+  // whether to move the graph first. It therefore did not run the query that turn was
+  // about, and a gate went red for the agent behaving well.
+  //
+  // Moving to `testing/.scratch/` fixed the engine warning and not the problem. In the run
+  // at 2026-09-09T20-56 the agent read the path itself — ".scratch", inside a git worktree —
+  // decided it looked disposable, and refused to create anything for three turns while it
+  // asked where the data should really live. No engine change can prevent that: an agent
+  // reasons about where its User's durable data is going, which is the system working.
+  //
+  // So the directory has to read the way the real one does: somewhere a person would
+  // plausibly keep a graph. No "temp", no "scratch", no "test", no "eval" in the path.
+  // Sandboxes are kept rather than deleted, because a failed run is only diagnosable from
+  // the artifact it left behind.
+  const workspaces = path.join(homedir(), "cog-graph-workspaces");
+  await mkdir(workspaces, { recursive: true });
+  const sandbox = await mkdtemp(path.join(workspaces, `${def.name}-`));
   const configDir = path.join(sandbox, CONFIG_DIR_NAME);
   await mkdir(configDir, { recursive: true });
   if (def.sandbox?.fixtures) {

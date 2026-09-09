@@ -224,6 +224,35 @@ which reds 4 of its 6 cases (run 2026-09-09).
 IN-5 perfectly; a gate reporting a bare pass would read identically to one that checked two
 hundred items. The smoke eval passes it vacuously and says so.
 
+### Where the sandbox lives, and why the path is part of the scenario
+
+Sandboxes are created in `~/cog-graph-workspaces/<scenario>-<random>` — not under the
+platform temp root, not inside the repo, and with no "temp", "scratch", "test" or "eval" in
+the path. That is not fastidiousness; it cost two paid runs to learn.
+
+Under the temp root, DE-7 makes the engine warn that the graph will vanish, so **every**
+scenario tripped a warning that existed only because of the harness. On 2026-09-09T20-54 the
+agent handled it exactly right — stopped, explained that Windows cleans that directory
+without telling anyone, and asked the User whether to move the graph first — and so did not
+run the query the turn was about. A gate went red for the agent behaving well.
+
+Moving to `testing/.scratch/` removed the engine's warning and not the problem. On
+2026-09-09T20-56 the agent read the path itself, decided ".scratch" inside a git worktree
+looked disposable, and declined to create anything for three turns while it asked where the
+data should really live. No engine change prevents that, and none should: an agent reasoning
+about where its User's durable data is going is the system working.
+
+**The finding is about the product, not just the harness.** Location is part of this
+interface's UX, and an agent will spend real turns on it when the location looks wrong. In
+the neutral workspace the same scenario passed at 21 agent turns / 15 tool calls / 186,382
+tokens, against 24 / 18 / 245,997 under the temp root — roughly a sixth of the budget was
+going on the argument.
+*Probe:* point `sandbox` back at `tmpdir()` and run `bun run eval:skeleton`; expect the
+turn-2 gates to go red with the agent asking about the directory rather than querying.
+
+Sandboxes are kept rather than deleted — a failed run is only diagnosable from what it left
+behind — so `~/cog-graph-workspaces` accumulates and is the operator's to prune.
+
 ### Installing a binary for the in-loop agent
 
 `agent.install` writes files to a temp directory **outside the sandbox** and prepends it to
