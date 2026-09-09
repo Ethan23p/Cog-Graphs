@@ -47,7 +47,8 @@ Flagging that is part of the job, not an interruption of it.
 
 - **Tests and evals are a second layer of the spec.** They are never edited to fit the
   implementation. If a test seems wrong, that's a conversation with Ethan, recorded and
-  timestamped — not a quiet edit.
+  timestamped — not a quiet edit. *Adding* a case to cover a hole is not that
+  conversation; see "A hole in the cases is the next slice" below.
 - **Data over behavior.** Data is explicit, portable, inspectable, long-lived; behavior
   is modular and replaceable. When in doubt, put the durable thing in the artifact.
 - **Simple and minimal.** Few baked-in assumptions. Anything consequential is centrally
@@ -84,6 +85,39 @@ disagree, the doc wins and the extract is stale.
 Do not write the next case's test before finishing this slice. Writing the suite ahead
 of the engine pins imagined behavior: shapes get frozen for commands nobody has written,
 and the cases go quietly insensitive to what the system actually does.
+
+### A hole in the cases is the next slice
+
+The doc's case list is not complete, and discovering that is normal rather than a
+blocker. **When you find behavior that is shipped, or shipped-adjacent, with nothing in
+the second layer pinning it, that hole is your next vertical slice.** Own it: mint the
+case, take it red → green, carry on. You are the engineer; this is the job, not a
+question to escalate.
+
+Mint the ID by **where you were when you found it**, sub-numbered off the slice in
+progress: a hole noticed while opening DE-19 becomes `DE-19.1`, `DE-19.2`, and so on.
+That keeps the numbering honest about provenance — a minted case is dated by the loop,
+not slotted into the doc's sequence as though Ethan had written it. Do the minted cases
+before the slice they hang off, since they are usually prerequisites you tripped over on
+the way in.
+
+A minted case is a case: it goes in `testing/tests/*.test.ts`, it is frozen once green,
+and it is written to the same standard — a specific failure it rules out, in a comment,
+in the case's own words. Add it to `testing/CASES.md` under **Minted** with one line on
+what prompted it.
+
+Two things stay Ethan's:
+
+- **The doc is still the authority for scope.** A minted case pins behavior the doc
+  already implies; it does not add capabilities. If closing a hole would require a new
+  capability, that is a conversation, not a slice.
+- **Every minted case gets reported.** Keep a running itemized list of the consequential
+  calls — what you found, what you decided, what it cost — and hand it over at the end.
+  Ethan ratifies them into the doc afterwards, or does not.
+
+Sources of holes, in rough order of how often they pay out: a `/code-review` pass, a
+capability the doc describes in prose but never grades, and a flag that `--help`
+advertises while the engine ignores it.
 
 - **A green case is frozen.** `testing/tests/*.test.ts`, `testing/tests/contract.ts` and
   `testing/evals/*.ts` are append-only — add cases freely, never edit a landed one.

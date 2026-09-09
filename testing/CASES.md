@@ -131,3 +131,51 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - **JU-1** Ethan runs the Walking Skeleton manually end to end and records concerns.
 - **JU-2** Every automated case has a reference solution: a known-good command transcript that passes all of its graders.
   - Proves the case is solvable and the graders are wired correctly, so a 0% pass rate is never misread as an incapable engine.
+
+---
+
+## Minted — holes found by the loop
+
+Cases the doc does not list, covering behavior it already implies. Minted under the rule
+in `CLAUDE.md` ("A hole in the cases is the next slice"), IDs sub-numbered off whichever
+slice was in progress when the hole surfaced. These are frozen once green like any other
+case, and are pending Ethan's ratification into the doc.
+
+- **DE-10.1** Selection filtering: `query --attr k=v` returns only items carrying that
+  pair, `--exclude k=v` drops items carrying it, and repeated flags compose.
+  - Found at DE-10. The grammar line and the `selection` search strategy are both
+    ratified in the doc, and DE-5/DE-4 force both flags into `--help` and into the
+    recognized-options list — but nothing graded what they *do*. It is the doc's only
+    search strategy for v0.3.1.
+- **DE-19.1** `introduce --graph <ns>` against an existing graph returns the *instance*
+  introduction, naming what the graph is for and the convention it keeps.
+  - Found by `/code-review` at the DE-17 → DE-19 boundary. The engine ignored `--graph`
+    and answered "There is no Cog Graph here yet" over a graph that was present.
+- **DE-19.2** Every invocation answers on a stream: bare `cog-graphs`, `cog-graphs
+  --help`, and an unknown command each produce output rather than silence.
+  - Same review. All three exited 1 with empty stdout *and* empty stderr, which is the
+    first thing RU-3's zero-priming agent meets.
+- **DE-19.3** A command that exists in the grammar but is not yet implemented fails with
+  an explicit `not_implemented` error carrying a `next_step`.
+  - Same review. `import` and `convention` are graded by DE-5 as deliverables and
+    answered with nothing at all.
+- **DE-19.4** A namespace must be a single non-empty path segment; `../escape` and
+  whitespace-only names are refused.
+  - Same review. `namespace: ../escaped` wrote outside the target directory and reported
+    success — the failure the temp-directory guard exists to prevent.
+- **DE-19.5** `initialize` refuses when either face of the artifact already exists, not
+  just the `.sqlite`.
+  - Same review. A pre-existing `notes.md` was destroyed, exit 0, by a graph named
+    `notes`.
+- **DE-19.6** A flag given without a value errors rather than silently falling back to a
+  default.
+  - Same review. `--dir` with no value silently used the working directory, which is the
+    one flag whose entire purpose is controlling where the User's artifact lands.
+- **DE-19.7** The sidecar cannot be made to misrepresent the artifact: an entity name or
+  value containing Markdown structure does not forge a heading or an attribute.
+  - Same review. A value containing a newline and `- **status**: shipped` rendered as a
+    real attribute in the inspectable face.
+- **DE-19.8** `--pretty` produces a human-readable form distinct from the default JSON.
+  - Same review. Accepted everywhere, named in every error's "It accepts:" list, and
+    inert. IN-9 asserts this across every command later; this pins that it does anything
+    at all.

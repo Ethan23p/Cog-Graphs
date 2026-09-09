@@ -62,5 +62,9 @@ _None._
 - **Why it matters**: this is the doc's one search strategy for v0.3.1 and the thing
   that makes iterative traversal possible (56429). It is currently the largest piece of
   shipped behavior with nothing in the second layer pinning it.
-- **Resolution**: <Ethan — add a DE case for selection filtering, or confirm the gap is
-  intentional for the MVI.>
+- **Resolution**: 2026-09-08, Ethan — not a dispute, and not a second-pass item. A hole
+  in the cases is the next vertical slice, and the engineer owns closing it: mint the
+  case, take it red → green, report it at the end. Minted as **DE-10.1**. The rule is now
+  in `CLAUDE.md` and minted cases are listed in `CASES.md`; future gaps go straight there
+  rather than here. This file returns to what it is for — a landed case that looks
+  *wrong*, which is still Ethan's to resolve.
