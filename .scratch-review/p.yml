@@ -1,0 +1,6 @@
+profile:
+  namespace: "demo"
+  use-pattern: "manual"
+  description: "Demo."
+convention: |
+  Every entity carries a status.

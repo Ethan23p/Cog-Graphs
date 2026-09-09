@@ -395,8 +395,27 @@ function writeSidecar(dbPath: string): void {
  * only stays worth reading if it does not fire on directories that are fine.
  */
 function isUnderTempRoot(dir: string): boolean {
-  const rel = path.relative(realpathish(tmpdir()), realpathish(dir));
+  const rel = path.relative(realpathish(tmpdir()), realpathish(nearestExisting(dir)));
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * The closest ancestor of `dir` that exists — `dir` itself when it does.
+ *
+ * A path that does not exist cannot be realpath'd, so on a platform where the temp root
+ * is a symlink (macOS: /var/folders behind /private/var) the guard was comparing an
+ * unresolved path against a resolved one and quietly not firing. The ancestor resolves,
+ * and a directory's temp-ness is a property of where it sits, so this answers the same
+ * question with a path the filesystem can actually speak about (DE-7.1).
+ */
+function nearestExisting(dir: string): string {
+  let at = dir;
+  while (!existsSync(at)) {
+    const parent = path.dirname(at);
+    if (parent === at) return at;
+    at = parent;
+  }
+  return at;
 }
 
 /** realpath where possible; the literal path where it does not resolve. */
@@ -734,6 +753,33 @@ if (command === "initialize") {
   // decide. It rides in the payload rather than on stderr so success stays one parseable
   // object on one stream (IN-9).
   const warnings: { code: string; message: string; next_step: string }[] = [];
+
+  // A --dir that does not exist yet is two different acts wearing one spelling, and the
+  // engine has to tell them apart (DE-7.1). `--dir ./graphs` from a directory the User
+  // chose is an ordinary "make me a folder for this". `--dir ./Documnets/graphs` is a
+  // typo, and creating it makes the mistake real: the graph lands somewhere nobody will
+  // ever open, reported as success. The line is drawn at the parent, because that is
+  // exactly where the two stop looking alike.
+  if (!existsSync(dir)) {
+    const parent = path.dirname(dir);
+    if (!existsSync(parent)) {
+      fail(
+        EXIT.NOT_FOUND,
+        "directory_not_found",
+        `Neither ${dir} nor its parent ${parent} exists.`,
+        `Check the path for a typo, or create the directory first and re-run. One new directory under one that already exists is made for you; a whole tree is not, because that is usually a mistyped path rather than an intention.`,
+      );
+    }
+    mkdirSync(dir);
+    // Created, but never silently. An Operator who mistyped one level gets the cheapest
+    // possible chance to notice, and one who meant it loses nothing by being told.
+    warnings.push({
+      code: "created_directory",
+      message: `${dir} did not exist and was created for this graph.`,
+      next_step: `If that is not where you meant the graph to go, remove it and re-run initialize with the --dir you intended.`,
+    });
+  }
+
   if (isUnderTempRoot(dir)) {
     warnings.push({
       code: "temp_directory",
