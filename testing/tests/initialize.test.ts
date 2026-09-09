@@ -4,6 +4,8 @@ import { makeSandbox, readProfile, runCli, writeProfileYml } from "./helpers";
 import { EXIT, PROFILE_FIELDS, graphFile } from "./contract";
 import { makeOrdinarySandbox } from "./helpers";
 import { existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { sidecarFile } from "./contract";
 
 describe("DE-6 — the stored profile matches the imported .yml", () => {
   // The profile is the identity of this instantiation and it lives inside the artifact,
@@ -143,4 +145,55 @@ describe("DE-19.4 (minted) — the namespace must be a single path segment", () 
       expect(existsSync(graphFile(cwd, namespace))).toBe(true);
     });
   }
+});
+
+describe("DE-19.5 (minted) — initialize will not overwrite either face", () => {
+  // MINTED at the DE-17 → DE-19 boundary, found by /code-review. The already-exists
+  // check covered only the `.sqlite`, while writeSidecar did an unconditional write.
+  //
+  // The scenario is ordinary and the loss is total: a User keeps `notes.md` in a
+  // directory, their Assistant initializes a graph and reasonably picks the namespace
+  // `notes`, and the file is gone. Exit 0, no warning, nothing in the payload. The
+  // sidecar is derived and disposable *to the engine*, which is exactly why the engine
+  // must not assume a file at that path is one of its own — everything the artifact
+  // owns, it created.
+  const seed = "Every entity carries a status.";
+
+  function profileFor(cwd: string, namespace: string) {
+    const profilePath = path.join(cwd, "profile.yml");
+    writeProfileYml(
+      profilePath,
+      { namespace, "use-pattern": "manual", description: "Overwrite guard." },
+      seed,
+    );
+    return profilePath;
+  }
+
+  test("refuses when a file already holds the sidecar's name, and leaves it untouched", () => {
+    const cwd = makeSandbox();
+    const theirs = "# The User's own notes\n\nNothing to do with any graph.\n";
+    writeFileSync(sidecarFile(cwd, "notes"), theirs);
+
+    const r = runCli(["initialize", "--profile", profileFor(cwd, "notes")], { cwd });
+
+    expect(r.exitCode).toBe(EXIT.ALREADY_EXISTS);
+    const error = JSON.parse(r.stderr);
+    expect(error.code).toBe("artifact_exists");
+    expect(error.next_step.trim().length).toBeGreaterThan(0);
+    // The whole point: their file is exactly as they left it.
+    expect(readFileSync(sidecarFile(cwd, "notes"), "utf8")).toBe(theirs);
+    // And no half-built graph was left beside it.
+    expect(existsSync(graphFile(cwd, "notes"))).toBe(false);
+  });
+
+  test("still refuses when the .sqlite is the one in the way", () => {
+    // The pre-existing behavior, kept green: widening the check must not narrow it.
+    const cwd = makeSandbox();
+    runCli(["initialize", "--profile", profileFor(cwd, "twice")], { cwd });
+
+    const r = runCli(["initialize", "--profile", profileFor(cwd, "twice")], { cwd });
+
+    expect(r.exitCode).toBe(EXIT.ALREADY_EXISTS);
+    expect(JSON.parse(r.stderr).code).toBe("artifact_exists");
+  });
 });

@@ -627,12 +627,28 @@ if (command === "initialize") {
     });
   }
   const dbPath = path.join(dir, `${namespace}.sqlite`);
-  if (existsSync(dbPath)) {
+  const sidecarPath = path.join(dir, `${namespace}.md`);
+
+  // Both faces are checked, not just the database.
+  //
+  // The sidecar is derived and disposable *to the engine*, and the old check took that
+  // to mean a file at that path was always one of ours. It is not: a User with
+  // `notes.md` in their directory, whose Assistant sensibly picks the namespace `notes`,
+  // lost the file — exit 0, no warning, nothing in the payload. Everything the artifact
+  // owns is something the artifact created, so anything already sitting on either name
+  // belongs to somebody else.
+  const occupied = [dbPath, sidecarPath].filter((p) => existsSync(p));
+  if (occupied.length > 0) {
+    const isOurs = existsSync(dbPath);
     fail(
       EXIT.ALREADY_EXISTS,
-      "graph_exists",
-      `A graph named '${namespace}' already lives at ${dbPath}.`,
-      `Use it as it is — 'cog-graphs introduce --graph ${namespace}' — or choose a different namespace in the profile.`,
+      "artifact_exists",
+      isOurs
+        ? `A graph named '${namespace}' already lives at ${dbPath}.`
+        : `Cannot create '${namespace}' here: ${occupied.join(", ")} already exists and was not created by this graph.`,
+      isOurs
+        ? `Use it as it is — '${BINARY} introduce --graph ${namespace}' — or choose a different namespace in the profile.`
+        : `A graph named '${namespace}' would write ${dbPath} and ${sidecarPath}. Pick a different namespace in ${resolved}, or move the existing file, or use --dir to build the graph somewhere else.`,
     );
   }
   mkdirSync(dir, { recursive: true });
