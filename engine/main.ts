@@ -345,7 +345,7 @@ function renderSidecar(dbPath: string): string {
       .all() as { entity_id: number; attribute: string; value: string }[];
 
     const lines: string[] = [];
-    lines.push(`# ${namespace}`, "");
+    lines.push(`# ${inline(namespace)}`, "");
     lines.push(
       "> Derived file — do not edit. The engine rewrites it whenever the graph changes,",
       `> and never reads it back. Everything real lives in \`${path.basename(dbPath)}\`.`,
@@ -354,7 +354,7 @@ function renderSidecar(dbPath: string): string {
     lines.push(
       "This is a **Cog Graph**: a persistent store of entities and the attribute/value",
       "pairs recorded about them. It is meant to be worked through the `cog-graphs` CLI —",
-      "`cog-graphs introduce --graph " + namespace + "` is the way in, and",
+      "`cog-graphs introduce --graph " + inline(namespace) + "` is the way in, and",
       "`cog-graphs introduce --interface-skill` is the full primer.",
       "",
     );
@@ -525,7 +525,20 @@ function prettyText(payload: Record<string, unknown>): string {
   return prettyLines(payload, "").join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function prettyLines(value: unknown, indent: string): string[] {
+/**
+ * Reflow a multi-line string as real lines, or fold it onto one?
+ *
+ * Both, depending on whose text it is. The top-level fields of a payload are written by
+ * the engine — the primer, the introduction, a summary — and reflowing them is the entire
+ * reason `--pretty` exists (DE-19.8). Everything nested below that is the Operator's own
+ * data: an entity, an attribute, a value. Reflowing *that* lets it forge payload fields,
+ * because an attribute value of "count: 999" rendered on its own line is indistinguishable
+ * from a field the payload actually has (DE-19.7.1).
+ *
+ * The depth is the line, and it is a real one rather than a convenient one: it is exactly
+ * the boundary between text this program wrote and text it was handed.
+ */
+function prettyLines(value: unknown, indent: string, depth = 0): string[] {
   if (value === null || value === undefined) return [`${indent}—`];
 
   if (Array.isArray(value)) {
@@ -533,9 +546,9 @@ function prettyLines(value: unknown, indent: string): string[] {
     const out: string[] = [];
     for (const item of value) {
       if (item !== null && typeof item === "object") {
-        out.push(...prettyLines(item, indent + "  "), "");
+        out.push(...prettyLines(item, indent + "  ", depth + 1), "");
       } else {
-        out.push(`${indent}- ${String(item)}`);
+        out.push(`${indent}- ${depth === 0 ? String(item) : inline(String(item))}`);
       }
     }
     return out;
@@ -548,7 +561,9 @@ function prettyLines(value: unknown, indent: string): string[] {
       // wants words. The label is the only cosmetic liberty taken with the data.
       const label = key.replace(/_/g, " ");
       if (child !== null && typeof child === "object") {
-        out.push(`${indent}${label}:`, ...prettyLines(child, indent + "  "), "");
+        out.push(`${indent}${label}:`, ...prettyLines(child, indent + "  ", depth + 1), "");
+      } else if (typeof child === "string" && child.includes("\n") && depth > 0) {
+        out.push(`${indent}${label}: ${inline(child)}`);
       } else if (typeof child === "string" && child.includes("\n")) {
         out.push(`${indent}${label}:`, "");
         for (const line of child.split("\n")) out.push(line ? `${indent}  ${line}` : "");
@@ -796,6 +811,13 @@ if (command === "initialize") {
   const namespace = (profile.namespace as string).trim();
   const namespaceIsOneSegment =
     namespace.length > 0 &&
+    // Rejected rather than escaped downstream, because unlike an attribute value there is
+    // no legitimate content being refused: a namespace is a filename and an identifier the
+    // Operator types back, and a control character in one is never anything but a mistake
+    // or an attack. On POSIX a filename containing a newline is creatable, and the
+    // namespace is interpolated into the sidecar's H1 (DE-19.7.1).
+    // eslint-disable-next-line no-control-regex
+    !/[\u0000-\u001f\u007f]/.test(namespace) &&
     !namespace.includes("/") &&
     !namespace.includes("\\") &&
     path.basename(namespace) === namespace &&
