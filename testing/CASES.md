@@ -179,3 +179,33 @@ case, and are pending Ethan's ratification into the doc.
   - Same review. Accepted everywhere, named in every error's "It accepts:" list, and
     inert. IN-9 asserts this across every command later; this pins that it does anything
     at all.
+
+Minted after the IN-9/10/11 sweep, by a second `/code-review` pass. These are
+sub-numbered off the case whose claim they extend rather than off the slice in progress —
+a deviation from the mint-by-slice rule, taken because an ID that says *where to look* is
+worth more than one that says when it was found. Flagged for Ethan to ratify or reverse.
+
+- **DE-7.1** `--dir` does not invent a directory tree, and says when it makes one.
+  - `--dir ./no/such/dir` created all three levels at exit 0 with no warning. Also closes
+    DE-7's own blind spot: a path that does not exist cannot be realpath'd, so where the
+    temp root is a symlink (macOS) the guard did not fire.
+- **DE-19.6.1** Every value-taking flag reaches the missing-value rule.
+  - DE-19.6's sweep runs in an empty directory, where every row fails on something earlier
+    — `no_graph_here`, `missing_option`, `not_implemented` — and never on
+    `missing_value`. It passed against the pre-fix engine. This is the sweep it meant to
+    be; DE-19.6 stays as it is.
+- **DE-19.7.1** The pretty form cannot forge structure, and the namespace is not exempt.
+  - DE-19.7 hardened the sidecar; DE-19.8 then added a second rendered face with no guard,
+    so a value's newlines became payload lines. And `inline()` covered every
+    interpolation except the namespace, which the validator permitted a control character
+    in.
+- **DE-19.8.1** A global flag is never mistaken for a command.
+  - `cog-graphs --pretty` answered "'--pretty' is not a cog-graphs command" — while the
+    overview's own output line advertises exactly that flag.
+- **DE-19.8.2** The pretty form is unambiguous, not merely readable.
+  - An empty object rendered as a dangling label, and array items had no delimiter, so an
+    attribute-less item was indistinguishable from an item boundary.
+- **IN-4.1** An unwritable sidecar does not break the command.
+  - IN-4 put regeneration on the read path with an unguarded write, so a read-only sidecar
+    killed `query` with an uncaught EPERM outside the exit alphabet — punishing the User
+    who took the file's own "do not edit" banner seriously.

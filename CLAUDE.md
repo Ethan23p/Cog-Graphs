@@ -101,6 +101,14 @@ not slotted into the doc's sequence as though Ethan had written it. Do the minte
 before the slice they hang off, since they are usually prerequisites you tripped over on
 the way in.
 
+*Open question, raised by the loop and not yet ratified.* Provenance is not always the
+most useful thing an ID can carry. A hole found while sweeping IN-9/10/11 that turns out
+to extend DE-7's claim is `IN-9.1` under the rule above and `DE-7.1` under a
+subject-based one, and only the second tells the next reader where to look. The cases
+minted after the second `/code-review` pass use the subject-based form — DE-7.1,
+DE-19.6.1, DE-19.7.1, DE-19.8.1, DE-19.8.2, IN-4.1 — each flagged in its own commit and
+listed in `CASES.md`. Ethan decides which rule stands; renaming them later costs a commit.
+
 A minted case is a case: it goes in `testing/tests/*.test.ts`, it is frozen once green,
 and it is written to the same standard — a specific failure it rules out, in a comment,
 in the case's own words. Add it to `testing/CASES.md` under **Minted** with one line on
