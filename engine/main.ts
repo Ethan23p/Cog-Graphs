@@ -282,6 +282,24 @@ const HELP: Record<string, Help> = {
  * and has no idea what it is — so it leads with what the graph is for and how to work
  * it, and the item listing comes after.
  */
+/**
+ * One line, always.
+ *
+ * The sidecar is interpolated Markdown, so any datum that can introduce a line can
+ * introduce a *heading* — an entity named "Sword\n\n### Shield" renders an entity that
+ * does not exist (DE-19.7). The database is the authority and keeps what it was given,
+ * which is exactly why the rendering is where this is dealt with: the fix must not reach
+ * back and edit the User's data.
+ *
+ * Line breaks become a visible `\n`, so the value stays legible and stays one line.
+ * Nothing else is touched — backslashes especially are left alone, because `C:\games` is
+ * an ordinary value in this domain and doubling it would make every sidecar pay for the
+ * rare case.
+ */
+function inline(value: string): string {
+  return value.replace(/\r\n|\r|\n/g, "\\n");
+}
+
 function renderSidecar(dbPath: string): string {
   const db = new Database(dbPath, { readonly: true });
   try {
@@ -322,7 +340,7 @@ function renderSidecar(dbPath: string): string {
     );
 
     lines.push("## Profile", "");
-    for (const { field, value } of profile) lines.push(`- **${field}**: ${value}`);
+    for (const { field, value } of profile) lines.push(`- **${inline(field)}**: ${inline(value)}`);
     lines.push("");
 
     lines.push("## Convention", "");
@@ -331,7 +349,7 @@ function renderSidecar(dbPath: string): string {
       "",
     );
     if (convention.length === 0) lines.push("_None recorded._", "");
-    else for (const text of convention) lines.push(`- ${text}`), lines.push("");
+    else for (const text of convention) lines.push(`- ${inline(text)}`), lines.push("");
 
     lines.push("## Contents", "");
     if (entities.length === 0) {
@@ -339,11 +357,11 @@ function renderSidecar(dbPath: string): string {
     } else {
       lines.push(`${entities.length} ${entities.length === 1 ? "entity" : "entities"}.`, "");
       for (const entity of entities) {
-        lines.push(`### ${entity.name}`, "");
+        lines.push(`### ${inline(entity.name)}`, "");
         const own = attributes.filter((a) => a.entity_id === entity.id);
         if (own.length === 0) lines.push("_No attributes recorded._", "");
         else {
-          for (const a of own) lines.push(`- **${a.attribute}**: ${a.value}`);
+          for (const a of own) lines.push(`- **${inline(a.attribute)}**: ${inline(a.value)}`);
           lines.push("");
         }
       }
