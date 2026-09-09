@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
 import { makeSandbox, runCli, spawnGraph, writeProfileYml } from "./helpers";
+// IN-10.1 (minted): added as its own statement rather than folded into the import
+// above, because this file is frozen and an edited line is a removed line.
+import { writeRecordsYml } from "./helpers";
 import { COMMANDS, ERROR_FIELDS, EXIT, GLOBAL_FLAGS } from "./contract";
 
 // IN-9, IN-10, IN-11 — the interface invariants, which are the ones an agent actually
@@ -52,6 +55,26 @@ function invocations(): { label: string; args: string[]; cwd: string }[] {
     "Every entity carries a status.",
   );
 
+  // IN-10.1 (minted, found opening DE-20) — two sources for the bulk rows below.
+  //
+  // The hole: this sweep claims to cover "at least one per class the exit alphabet
+  // names", and it never reached EXIT.PARTIAL — there was no code that could produce it
+  // until DE-20, and no row was added when there was. It also had no success row for
+  // `import` at all, so the one command that can be half-right was swept only through
+  // its --help. Names are chosen not to collide with the rows above or with each other:
+  // the partial source reuses "Sword", which exists from the top of this function and is
+  // never removed, so its rejection does not depend on the order of the rows.
+  const cleanSource = path.join(g.cwd, "sweep-clean.yml");
+  writeRecordsYml(cleanSource, [
+    { entity: "Lantern", attributes: { status: "owned" } },
+    { entity: "Rope", attributes: { status: "owned" } },
+  ]);
+  const partialSource = path.join(g.cwd, "sweep-partial.yml");
+  writeRecordsYml(partialSource, [
+    { entity: "Torch", attributes: { status: "owned" } },
+    { entity: "Sword", attributes: { status: "owned" } },
+  ]);
+
   const here = (label: string, args: string[]) => ({ label, args, cwd: g.cwd });
   const there = (label: string, args: string[]) => ({ label, args, cwd: empty });
 
@@ -81,6 +104,11 @@ function invocations(): { label: string; args: string[]; cwd: string }[] {
     here("entity not found", ["modify-item", "--graph", g.namespace, "--entity", "Ghost", "--attr", "a=b"]),
     here("already exists", ["add-item", "--graph", g.namespace, "--entity", "Sword"]),
     there("profile not found", ["initialize", "--profile", "./nowhere.yml"]),
+    // IN-10.1 (minted): the bulk rows. `import` is the only command whose answer can be
+    // neither success nor failure, which makes it the one most likely to have its own
+    // private conventions — and it landed with no row here at all.
+    here("import", ["import", "--graph", g.namespace, "--from", cleanSource]),
+    here("partial ingestion", ["import", "--graph", g.namespace, "--from", partialSource]),
     // AMENDED 2026-09-09, under Ethan's resolution of the DE-19.3 dispute (DISPUTES.md).
     // This row named `import` in a literal, and DE-19 built `import`, so the row's own
     // label stopped being true of its invocation: it exercised source_not_found and was
@@ -162,6 +190,10 @@ describe("IN-10 — exit codes are meaningful on every invocation", () => {
     "already exists": EXIT.ALREADY_EXISTS,
     "profile not found": EXIT.NOT_FOUND,
     "unbuilt command": EXIT.INTERNAL,
+    // IN-10.1 (minted): the fourth class in the alphabet, unreachable from this table
+    // until DE-20 built something that could produce it.
+    import: EXIT.OK,
+    "partial ingestion": EXIT.PARTIAL,
     // Exit 0, not usage. `cog-graphs` with no arguments is the front door — it answers
     // the question "what is this" with the overview, which is a success. Reporting a
     // failure code would tell a zero-priming agent it did something wrong at the exact

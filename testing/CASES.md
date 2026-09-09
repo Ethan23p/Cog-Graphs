@@ -241,3 +241,13 @@ question either way.
     (exit 2) or an unparseable one (exit 1) — already distinct, and distinct in kind,
     since nothing was offered and there is nothing to report per record. The case pins
     the reading so the next reader finds a decision rather than a silence.
+- **IN-10.1** The interface sweep reaches the fourth class in the exit alphabet, and
+  `import` has a success row at all.
+  - Found opening DE-20. The sweep's own comment claims "at least one per class the exit
+    alphabet names", and EXIT.PARTIAL was unreachable from its table — there was no code
+    that could produce it before DE-20, and no row appeared when there was. `import` also
+    had no success row: the one command whose answer can be neither success nor failure,
+    and therefore the one most likely to grow private conventions, was swept only through
+    its `--help`. Added as insertions to a frozen file (two rows, two expected-code
+    entries, and a second `import` statement rather than an edit to the first, since an
+    edited line is a removed line). Sub-numbered off IN-10 under the subject-based rule.
