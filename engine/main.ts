@@ -372,10 +372,19 @@ function renderSidecar(dbPath: string): string {
   }
 }
 
-/** Rewrite the inspectable face from the functional one. Called after every change. */
+/**
+ * Rewrite the inspectable face from the functional one.
+ *
+ * Written only when the rendering actually differs from what is on disk. The sidecar is a
+ * pure function of the artifact, so an identical rewrite is a no-op that costs an mtime —
+ * and an mtime that moves when nothing changed is a lie told to anyone watching the
+ * directory. It also makes this safe to call on the read path (IN-4).
+ */
 function writeSidecar(dbPath: string): void {
   const sidecar = path.join(path.dirname(dbPath), `${path.basename(dbPath, ".sqlite")}.md`);
-  writeFileSync(sidecar, renderSidecar(dbPath));
+  const rendered = renderSidecar(dbPath);
+  if (existsSync(sidecar) && readFileSync(sidecar, "utf8") === rendered) return;
+  writeFileSync(sidecar, rendered);
 }
 
 /**
@@ -785,12 +794,25 @@ if (command === "initialize") {
  * answer is unambiguous. When it is not, the engine says what it found rather than
  * picking — an Operator who meant graph A and silently got graph B has no way to notice.
  */
+/**
+ * The graph this invocation is about.
+ *
+ * Every command that touches a graph comes through here, which is why the sidecar is
+ * brought up to date here too rather than in each command (IN-4). A User who deleted the
+ * derived file, or edited it and expects the engine to have noticed, gets it back current
+ * whatever command they happened to run — including the readers, which otherwise would
+ * have left them staring at a missing or stale face and no way to tell which. Writers
+ * render again after mutating; the second call is free when nothing changed.
+ */
 function resolveGraph(): { namespace: string; dbPath: string } {
   const dir = process.cwd();
   const requested = optionValue("--graph");
   if (requested) {
     const dbPath = path.join(dir, `${requested}.sqlite`);
-    if (existsSync(dbPath)) return { namespace: requested, dbPath };
+    if (existsSync(dbPath)) {
+      writeSidecar(dbPath);
+      return { namespace: requested, dbPath };
+    }
     const present = listGraphs(dir);
     fail(
       EXIT.NOT_FOUND,
@@ -803,7 +825,11 @@ function resolveGraph(): { namespace: string; dbPath: string } {
   }
 
   const present = listGraphs(dir);
-  if (present.length === 1) return { namespace: present[0], dbPath: path.join(dir, `${present[0]}.sqlite`) };
+  if (present.length === 1) {
+    const dbPath = path.join(dir, `${present[0]}.sqlite`);
+    writeSidecar(dbPath);
+    return { namespace: present[0], dbPath };
+  }
   if (present.length === 0) {
     fail(
       EXIT.NOT_FOUND,
