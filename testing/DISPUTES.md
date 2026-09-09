@@ -41,6 +41,10 @@ to make a suite lie.
 
 ## Open
 
+_None._
+
+## Resolved
+
 ### DE-19.3 — the unbuilt-command sweep cannot empty itself, and blocks DE-19
 - **Raised**: 2026-09-08 by Claude
 - **The case says**: `testing/tests/entrypoint.test.ts`, `const unbuilt = ["import",
@@ -72,7 +76,14 @@ to make a suite lie.
   the case's real claim ("an unbuilt command says so, distinguishably from a typo") and
   makes it retire itself as the comment always intended. Deleting the case outright would
   lose that claim while `convention` is still unbuilt.
-- **Resolution**: <Ethan>
+- **Resolution**: 2026-09-09, Ethan — dispute upheld, recommendation blessed, and DE-19
+  unblocked in the same breath. DE-19.3 now asks the engine which commands are unbuilt:
+  it runs `<name> --help` for every command in COMMANDS and sweeps whatever comes back
+  carrying `status: "not_implemented"`. The claim is unchanged; only its input moved
+  from a literal to the CLI. A standing test asserts the derivation itself — every
+  command's `--help` parses and reports a build status — so an empty sweep is a fact
+  the suite established rather than a silent absence of tests. Landed in the same commit
+  as this resolution, per the guard's own instruction.
 
 ### Stale reference — a frozen eval file names `DESIGN.md`, which no longer exists
 - **Raised**: 2026-09-09 by Claude
@@ -94,12 +105,9 @@ to make a suite lie.
   `(testing/harness/IMPLEMENTATION.md E5)` in the same commit as the resolution, so the
   history shows a frozen file changed by decision. Or leave it — E5 is still findable by
   its ID, which is the part that matters.
-- **Resolution**: <Ethan>
-
-## Resolved
-
-_None._
-
+- **Resolution**: 2026-09-09, Ethan — edit blessed. `testing/evals/eval_smoke.ts:3` now
+  reads `(testing/harness/IMPLEMENTATION.md E5)`. Landed in the same commit as this
+  resolution.
 ### Coverage gap — query's `--attr` / `--exclude` filters have no v0.3.1 case
 - **Raised**: 2026-09-08 by Claude
 - **Not a dispute about a landed case** — recorded here because this is where

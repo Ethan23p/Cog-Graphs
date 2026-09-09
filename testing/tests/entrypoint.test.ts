@@ -83,15 +83,38 @@ describe("DE-19.3 (minted) — a command in the grammar but not yet built", () =
   // yet" needs to be a thing the interface can *say* — and it must be distinguishable
   // from "does not exist", because those imply different next moves.
   //
-  // This case is a scaffold with a deliberate lifetime: as DE-19/20/21 land, each
-  // command graduates out of UNBUILT and this stops covering it. The sweep is written
-  // over the set rather than the names so it empties itself honestly.
-  const unbuilt = ["import", "convention"];
+  // AMENDED 2026-09-09 by Ethan's resolution of the DE-19.3 dispute (DISPUTES.md).
+  // The case previously named `["import", "convention"]` in a literal while its own
+  // comment claimed the sweep "empties itself honestly" as commands graduate. It did
+  // not: the literal made DE-19.3 and DE-19 mutually unsatisfiable, since one required
+  // `import` to work and the other required it to report that it does not. The list is
+  // now asked of the engine, so the case's real claim survives — an unbuilt command
+  // says so, distinguishably from a typo — and the case retires itself when the set
+  // empties, which is what the comment always promised.
+  //
+  // Asking the engine also widens the sweep: any command that ever regresses into
+  // `not_implemented` is covered from that moment on, with no edit here.
+  const cwd = makeSandbox();
+  const help = COMMANDS.map((command) => ({
+    name: command.name,
+    payload: JSON.parse(runCli([command.name, "--help"], { cwd }).stdout) as Record<string, unknown>,
+  }));
+  const unbuilt = help.filter((h) => h.payload.status === "not_implemented").map((h) => h.name);
+
+  // Present whether or not anything is unbuilt, so an empty sweep is a fact the suite
+  // established rather than a silent absence of tests. The derivation is only honest if
+  // every command actually answered `--help` with parseable JSON carrying a name.
+  test("every command's --help reports whether it is built", () => {
+    expect(help.length).toBe(COMMANDS.length);
+    for (const h of help) {
+      expect(h.payload.command).toBe(h.name);
+      const status = h.payload.status;
+      expect(status === undefined || status === "not_implemented").toBe(true);
+    }
+  });
 
   for (const name of unbuilt) {
     test(`${name} fails loudly rather than silently`, () => {
-      const cwd = makeSandbox();
-
       // Invoked the way its own --help says to, so the case tracks what DE-5 promises.
       const example = JSON.parse(runCli([name, "--help"], { cwd }).stdout).examples[0] as string;
       const args = example.split(" ").slice(1);

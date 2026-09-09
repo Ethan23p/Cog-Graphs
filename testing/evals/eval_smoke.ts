@@ -1,6 +1,6 @@
 // Smoke eval — validates the harness itself, no Cog-Graphs dependency.
 // Proves: session persistence across turns, gating, transcript capture,
-// stats, sandbox isolation, and auth (DESIGN.md E5).
+// stats, sandbox isolation, and auth (testing/harness/IMPLEMENTATION.md E5).
 //
 // It also produces the transcript that `bun run verify:claims` reads to
 // re-verify E1–E4 offline, so this is the cheapest way to refresh those.
