@@ -10,8 +10,28 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 const argv = process.argv.slice(2);
-const command = argv[0];
-const flags = new Set(argv.slice(1));
+
+/**
+ * Accepted by every command, and therefore never a command themselves.
+ *
+ * Declared here rather than beside the help tables because the command is derived from
+ * this list: `--pretty query` and `query --pretty` are the same request, and an Operator
+ * who writes the flag first has not made a mistake (DE-19.8.1).
+ */
+const GLOBAL_FLAGS = ["--pretty", "--help"];
+
+/**
+ * The command is the first token that is not a global flag.
+ *
+ * Reading `argv[0]` directly meant `cog-graphs --pretty` was answered with
+ * "'--pretty' is not a cog-graphs command" — at the exact moment a person took the
+ * overview's own advice ("Add --pretty for the human-readable form") literally, with
+ * nothing else typed yet. An interface that names a flag and then rejects it as a command
+ * has misdirected the one Operator who was doing what it asked.
+ */
+const commandIndex = argv.findIndex((token) => !GLOBAL_FLAGS.includes(token));
+const command = commandIndex === -1 ? undefined : argv[commandIndex];
+const flags = new Set(argv.filter((_, i) => i !== commandIndex));
 
 /**
  * The fields the profile schema declares. Named once here because both the writer and
@@ -428,7 +448,6 @@ function realpathish(p: string): string {
 }
 
 /** Accepted by every command. */
-const GLOBAL_FLAGS = ["--pretty", "--help"];
 
 /**
  * The exit-code alphabet, verbatim from the doc:
@@ -555,9 +574,10 @@ function overview() {
 }
 
 // Asking a tool what it is has not gone wrong, so the overview is a success rather than
-// a usage error. `--help` with no command lands here too: `argv[0]` is the flag itself,
-// which is why the command-level help check below never fired for it.
-if (!command || command === "--help" || (command === "help" && argv.length === 1)) {
+// a usage error. A line of nothing but global flags lands here — `--help` and `--pretty`
+// alone both mean "what is this" — because the command derivation above leaves `command`
+// undefined when there is no non-flag token to find.
+if (!command || (command === "help" && argv.length === 1)) {
   succeed(overview());
 }
 
@@ -572,6 +592,19 @@ if (command && flags.has("--help")) {
       : {};
     succeed({ command, ...help, ...status });
   }
+}
+
+// A leading token that looks like a flag is a mis-written flag, not a mis-written
+// command, and saying so is the difference between a useful next move and a wild one:
+// told "'--nonsense' is not a command", an agent starts guessing command names, which is
+// the one thing that cannot help (DE-19.8.1).
+if (command && command.startsWith("--")) {
+  fail(
+    EXIT.USAGE,
+    "unknown_option",
+    `${BINARY} does not recognize the option '${command}'. Before a command it accepts: ${GLOBAL_FLAGS.join(", ")}.`,
+    `Every other option belongs after its command, e.g. '${BINARY} query --graph <ns>'. Run '${BINARY} --help' for the commands.`,
+  );
 }
 
 // An unrecognized command is where an agent's guess lands, so the error is written for
