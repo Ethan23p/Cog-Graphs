@@ -56,12 +56,10 @@ const BINARY = "cog-graphs";
  * leaves as its slice lands — `import` at DE-19/DE-20, `convention` at DE-21 — and the
  * set going empty is what retires DE-19.3.
  */
-const UNBUILT = new Set(["convention"]);
+const UNBUILT = new Set<string>([]);
 
 /** What to do in the meantime, per unbuilt command. Vague advice is not a next step. */
-const UNBUILT_NEXT_STEP: Record<string, string> = {
-  convention: `The convention is seeded at initialize and shown by '${BINARY} introduce'; amending it from the CLI is not available yet.`,
-};
+const UNBUILT_NEXT_STEP: Record<string, string> = {};
 
 const INTRO_SCOPE_SYSTEM = "system";
 const INTRO_SCOPE_INSTANCE = "instance";
@@ -1257,6 +1255,39 @@ if (command === "import") {
   // The count is the whole of what a bulk Operator gets back — it cannot read the result
   // item by item — so it counts what landed, not what was offered.
   succeed({ graph: namespace, source: resolved, ingested });
+}
+
+if (command === "convention") {
+  const { namespace, dbPath } = resolveGraph();
+  // Absent flag and empty flag are different things, and `optionValue` already keeps them
+  // apart: a dangling `--append` fails as missing_value before this line (DE-19.6.1).
+  const append = optionValue("--append");
+
+  const db = new Database(dbPath);
+  if (append !== undefined) {
+    // Amend means append, and the schema said so first — `convention` is an ordered table
+    // with an autoincrementing seq, not a single row. An Operator who learns in week three
+    // that ratings run 1-10 rather than 1-5 is recording something that *became* true, and
+    // the earlier expectation is how the items already in the graph are to be read.
+    // Overwriting the text would silently re-date every one of them (DE-21).
+    db.prepare("INSERT INTO convention (text, recorded_at) VALUES (?, ?)").run(
+      append,
+      new Date().toISOString(),
+    );
+  }
+  const convention = (
+    db.query("SELECT text FROM convention ORDER BY seq").all() as { text: string }[]
+  ).map((row) => row.text);
+  db.close();
+
+  // Only on a write. A read is a read: regenerating the derived face from a command that
+  // changed nothing is the failure IN-4.1 came from.
+  if (append !== undefined) writeSidecar(dbPath);
+
+  // The amend answers with the whole convention rather than the addition, so an agent that
+  // amends does not need a second call to learn what the graph now says about itself —
+  // which is the one thing it needs before its next write.
+  succeed({ graph: namespace, convention });
 }
 
 if (command === "modify-item") {
