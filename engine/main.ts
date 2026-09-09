@@ -21,6 +21,14 @@ const flags = new Set(argv.slice(1));
 const PROFILE_FIELDS = ["namespace", "use-pattern", "description"] as const;
 
 /**
+ * `introduce` answers as one of two things and the payload says which, so an Operator
+ * never has to infer from the shape whether they were told about a graph or about the
+ * system. Mirrors INTRO_SCOPE in the test contract.
+ */
+const INTRO_SCOPE_SYSTEM = "system";
+const INTRO_SCOPE_INSTANCE = "instance";
+
+/**
  * The functional face. One file, self-contained, openable by anything that speaks
  * SQLite — the doc's requirement is that it "neatly contains *everything* functional",
  * so the profile and the convention live in here beside the data rather than in
@@ -811,11 +819,76 @@ if (command === "query") {
   succeed({ graph: namespace, count: items.length, items });
 }
 
-if (command === "introduce") {
-  if (flags.has("--interface-skill")) {
-    succeed({ scope: "system", primer: INTERFACE_SKILL_PRIMER });
+/**
+ * The introduction to one particular graph.
+ *
+ * What a cold agent needs before it touches anything, and no more: what this graph is
+ * for in the User's own words, the convention it keeps, how much is in it, and the
+ * commands to go further. Skipping the description and convention is how a fresh thread
+ * ends up inventing its own attribute names beside the established ones — the graph does
+ * not break, it just quietly stops being coherent.
+ */
+function instanceIntroduction(namespace: string, dbPath: string) {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const profile = Object.fromEntries(
+      (db.query("SELECT field, value FROM profile").all() as { field: string; value: string }[])
+        .map((r) => [r.field, r.value]),
+    );
+    const convention = (
+      db.query("SELECT text FROM convention ORDER BY seq").all() as { text: string }[]
+    ).map((r) => r.text);
+    const [{ count }] = db.query("SELECT COUNT(*) AS count FROM entity").all() as {
+      count: number;
+    }[];
+    const attributes = (
+      db.query("SELECT DISTINCT attribute FROM eav ORDER BY attribute").all() as {
+        attribute: string;
+      }[]
+    ).map((r) => r.attribute);
+
+    return {
+      scope: INTRO_SCOPE_INSTANCE,
+      graph: namespace,
+      path: dbPath,
+      profile,
+      convention,
+      // The attributes already in use are the handholds for a selection query, so an
+      // agent can narrow on its first attempt instead of guessing names.
+      contents: { entities: count, attributes },
+      next_steps: [
+        `cog-graphs query --graph ${namespace}`,
+        `cog-graphs add-item --graph ${namespace} --entity <name> --attr key=value`,
+        `cog-graphs modify-item --graph ${namespace} --entity <name> --attr key=value`,
+        "cog-graphs introduce --interface-skill",
+      ],
+    };
+  } finally {
+    db.close();
   }
-  succeed({ scope: "system", introduction: SYSTEM_INTRODUCTION });
+}
+
+if (command === "introduce") {
+  // The primer is about the system, not any one graph, so it answers before resolution.
+  if (flags.has("--interface-skill")) {
+    succeed({ scope: INTRO_SCOPE_SYSTEM, primer: INTERFACE_SKILL_PRIMER });
+  }
+
+  // The doc: introduce returns an introduction to *this instantiation*, "unless there's
+  // no instantiation to be found, in which case it introduces this system". So the
+  // system introduction is the fallback, not the default — an empty directory is the
+  // only thing that earns it. Resolution runs first, and only a genuinely graph-less
+  // directory falls through; a named graph that does not exist is still an error, since
+  // an Operator who asked for something specific should not be answered about the
+  // system in general.
+  const requested = optionValue("--graph");
+  const present = listGraphs(process.cwd());
+  if (requested || present.length > 0) {
+    const { namespace, dbPath } = resolveGraph();
+    succeed(instanceIntroduction(namespace, dbPath));
+  }
+
+  succeed({ scope: INTRO_SCOPE_SYSTEM, introduction: SYSTEM_INTRODUCTION });
 }
 
 process.exit(1);
