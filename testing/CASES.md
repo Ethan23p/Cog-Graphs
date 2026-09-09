@@ -211,3 +211,33 @@ worth more than one that says when it was found. Flagged for Ethan to ratify or 
   - IN-4 put regeneration on the read path with an unguarded write, so a read-only sidecar
     killed `query` with an uncaught EPERM outside the exit alphabet — punishing the User
     who took the file's own "do not edit" banner seriously.
+
+Minted while opening DE-20. Sub-numbered off DE-20 under both rules at once — they were
+found there and they extend its claim — so they do not bear on the open numbering
+question either way.
+
+- **DE-20.1** A record that names no entity is rejected, not ingested under an empty name.
+  - The bulk loop read `typeof item.entity === "string" ? item.entity : ""` and inserted
+    the result. A record with no `entity:` key became a row named "" that no query can
+    name and no modify-item can reach — and the second such record collided with the
+    first, so the report blamed `entity_exists` on a name the Operator never wrote. A
+    non-string entity (`entity: 2001`, a game YAML read as a number) gets its own code,
+    `invalid_entity`, because the fix is quoting rather than naming.
+- **DE-20.2** A record colliding with an earlier record in the *same file* is rejected on
+  the same terms as one colliding with the artifact.
+  - Reading the graph's names once and comparing against that snapshot is the obvious
+    implementation and it is wrong: the snapshot does not know about the rows this same
+    invocation just inserted. Green on arrival, so liveness was established by probe —
+    deleting `taken.add(entity)` reds it. The probe also earned the case its exit-code
+    assertion: without it, the duplicate reached SQLite, the UNIQUE constraint killed the
+    process, and the artifact was left holding exactly the rows the case asked for. A
+    count that is right because the program died before it could be wrong is not a claim.
+- **DE-20.3** A source whose every record is rejected is still partial-with-report, with a
+  count of zero; "total failure" means the import itself failed.
+  - DE-20's sub-bullet asks for an exit distinct from total failure, which invites a
+    fourth outcome for a batch where nothing landed. Rejected: the alphabet has no code
+    for "nothing ingested", and inventing one gives an agent a branch for an outcome
+    `ingested: 0` already states exactly. Total failure is read as a missing source
+    (exit 2) or an unparseable one (exit 1) — already distinct, and distinct in kind,
+    since nothing was offered and there is nothing to report per record. The case pins
+    the reading so the next reader finds a decision rather than a silence.

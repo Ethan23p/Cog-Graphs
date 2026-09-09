@@ -141,3 +141,202 @@ describe("DE-20 — partial ingestion with report", () => {
     expect(notes).toContain("index");
   });
 });
+
+// DE-20.1 (minted, found opening DE-20) — A record that does not name an entity is
+// rejected, not ingested under an empty name.
+//
+// The hole: the loop read `typeof item.entity === "string" ? item.entity : ""` and
+// inserted whatever came back. A record with no `entity:` key became a row named "" —
+// a real entity, in the artifact, in the sidecar, that no query can name and no
+// modify-item can reach. Worse, it made the *second* such record collide with the first,
+// so the report blamed `entity_exists` on a name the Operator never wrote.
+//
+// add-item is again the reference: it refuses an absent --entity with `missing_value`,
+// so a record with no name is refused for the same reason under the same code. What is
+// deliberately *not* copied is a stricter rule than add-item's — a whitespace-only name
+// is accepted by add-item today, so it is accepted here. The two paths agreeing matters
+// more than either being tidy, because the moment they disagree an Operator has to learn
+// which one it is talking to.
+//
+// A non-string entity gets its own code rather than being folded in. `entity: 2001` is a
+// game called 2001 that YAML read as a number, and the fix is quoting it — a different
+// action from "give this record a name", so it is a different code.
+describe("DE-20.1 — a record that names no entity", () => {
+  function ingestRecords(records: Record<string, unknown>[]) {
+    const g = spawnGraph({ namespace: "nameless" });
+    const source = path.join(g.cwd, "items.yml");
+    writeRecordsYml(source, records);
+    return { g, r: runCli(["import", "--graph", g.namespace, "--from", source], { cwd: g.cwd }) };
+  }
+
+  test("it is rejected by index, with a null identifier rather than an invented one", () => {
+    const { r } = ingestRecords([
+      { entity: "Portal", attributes: { status: "completed" } },
+      { attributes: { status: "backlog" } },
+      { entity: "", attributes: { status: "backlog" } },
+    ]);
+
+    expect(r.exitCode).toBe(EXIT.PARTIAL);
+    const report = JSON.parse(r.stderr);
+    expect(report.ingested).toBe(1);
+    // null, not "". The report says the record had no identifier instead of reporting an
+    // identifier that is indistinguishable from a genuine empty name — and the index is
+    // then the only handle the Operator has, which is why it has to be exact.
+    expect(report.rejected).toEqual([
+      { index: 1, entity: null, reason: "missing_value" },
+      { index: 2, entity: null, reason: "missing_value" },
+    ]);
+  });
+
+  test("no empty-named row reaches the artifact or the derived face", () => {
+    const { g } = ingestRecords([
+      { entity: "Portal", attributes: { status: "completed" } },
+      { attributes: { status: "backlog" } },
+    ]);
+
+    const items = readItems(g.db);
+
+    expect(items.map((i) => i.entity)).toEqual(["Portal"]);
+    // Named explicitly as well as counted: a row named "" satisfies a length check the
+    // moment anything else is missing, and this is the assertion that would still fail.
+    expect(items.some((i) => i.entity === "")).toBe(false);
+    expect(readSidecar(g.sidecar)).not.toContain("### \n");
+  });
+
+  test("two nameless records do not collide with each other", () => {
+    const { r } = ingestRecords([{ attributes: { a: "1" } }, { attributes: { b: "2" } }]);
+
+    const report = JSON.parse(r.stderr);
+    // The defect this rules out is specific and was live: the second nameless record
+    // hitting the taken-names set and being reported as `entity_exists` — an error
+    // blaming a duplicate name on an Operator who wrote no name at all.
+    expect(report.rejected.map((x: { reason: string }) => x.reason)).toEqual([
+      "missing_value",
+      "missing_value",
+    ]);
+  });
+
+  test("an entity YAML read as a number is rejected for quoting, not for absence", () => {
+    const { r } = ingestRecords([
+      { entity: "Portal", attributes: { status: "completed" } },
+      { entity: 2001, attributes: { status: "backlog" } },
+    ]);
+
+    const report = JSON.parse(r.stderr);
+    expect(report.ingested).toBe(1);
+    // A distinct code because it is a distinct fix: quote the value, rather than supply a
+    // name that is not there. Folding both into missing_value would send an Operator
+    // looking for a key that is present and correct.
+    expect(report.rejected).toEqual([{ index: 1, entity: null, reason: "invalid_entity" }]);
+  });
+});
+
+// DE-20.2 (minted, found opening DE-20) — A record colliding with an *earlier record in
+// the same file* is rejected on the same terms as one colliding with the artifact.
+//
+// The hole is in what "already exists" is checked against. Reading the graph's names once
+// and comparing against that snapshot is the obvious implementation and it is wrong: the
+// snapshot does not know about the eleven rows this same invocation just inserted, so a
+// file listing the same entity twice ingests it twice. SQLite's UNIQUE constraint then
+// either takes the process down mid-batch, or — if the schema ever loses that constraint
+// — leaves two rows the Operator has no way to tell apart, in a graph whose whole premise
+// is that an entity is named once.
+//
+// This case is why the engine adds each landed name to the set as it goes rather than
+// testing against a snapshot. It went green on arrival, so its liveness was established
+// by probe instead of by a first red: deleting `taken.add(entity)` from the loop reds
+// exactly this describe and nothing else (run 2026-09-09).
+describe("DE-20.2 — a duplicate inside the source file", () => {
+  function ingestRecords(records: Record<string, unknown>[]) {
+    const g = spawnGraph({ namespace: "self-dup" });
+    const source = path.join(g.cwd, "items.yml");
+    writeRecordsYml(source, records);
+    return { g, r: runCli(["import", "--graph", g.namespace, "--from", source], { cwd: g.cwd }) };
+  }
+
+  const records = [
+    { entity: "Portal", attributes: { status: "completed" } },
+    { entity: "Hades", attributes: { status: "backlog" } },
+    { entity: "Portal", attributes: { status: "backlog" } },
+  ];
+
+  test("the second mention is rejected, and the first is what landed", () => {
+    const { g, r } = ingestRecords(records);
+
+    expect(r.exitCode).toBe(EXIT.PARTIAL);
+    const report = JSON.parse(r.stderr);
+    expect(report.ingested).toBe(2);
+    expect(report.rejected).toEqual([{ index: 2, entity: "Portal", reason: "entity_exists" }]);
+    // First wins, and it wins explicitly rather than by luck of iteration order: the
+    // attributes are the first mention's, so a last-write-wins engine fails here even
+    // though its count would be identical.
+    expect(readItems(g.db).find((i) => i.entity === "Portal")?.attributes).toEqual({
+      status: "completed",
+    });
+  });
+
+  test("the entity is named exactly once, and the run ended rather than died", () => {
+    const { g, r } = ingestRecords(records);
+
+    const items = readItems(g.db);
+
+    expect(items.filter((i) => i.entity === "Portal").length).toBe(1);
+    expect(items.length).toBe(2);
+    // The exit code is here because of what the liveness probe showed. Removing
+    // `taken.add(entity)` makes the duplicate reach SQLite, the UNIQUE constraint takes
+    // the process down, and the artifact is left holding exactly the two rows this test
+    // asked for — so without this line the case stayed green through a crash. A count
+    // that is correct because the program died before it could be wrong is not the claim.
+    expect(r.exitCode).toBe(EXIT.PARTIAL);
+  });
+});
+
+// DE-20.3 (minted, found opening DE-20) — A source whose every record is rejected is
+// still partial-with-report, and says so with a count of zero.
+//
+// DE-20's sub-bullet asks for an exit distinct from "total failure", which invites a
+// fourth outcome for a batch where nothing landed. Rejected, deliberately: the exit
+// alphabet has no code for "nothing ingested", and inventing one would give an agent a
+// branch to handle for an outcome the report already states exactly, in `ingested: 0`.
+//
+// "Total failure" is read instead as the import itself failing — a source that is missing
+// (EXIT.NOT_FOUND) or unparseable (EXIT.USAGE) — which are already distinct codes, and
+// distinct in kind: nothing was even offered, so there is nothing to report per record.
+// This case pins that reading so the next reader finds the decision rather than the
+// silence. It went green on arrival; the probe is DE-20's own — making `rejected.length`
+// the condition for a *success* payload reds this alongside DE-20.
+describe("DE-20.3 — every record rejected", () => {
+  test("exit is partial with a zero count, not a fourth kind of failure", () => {
+    const g = spawnGraph({ namespace: "all-bad" });
+    expect(
+      runCli(["add-item", "--graph", g.namespace, "--entity", "Portal"], { cwd: g.cwd }).exitCode,
+    ).toBe(EXIT.OK);
+    const source = path.join(g.cwd, "items.yml");
+    writeRecordsYml(source, [{ entity: "Portal" }, { attributes: { status: "backlog" } }]);
+
+    const r = runCli(["import", "--graph", g.namespace, "--from", source], { cwd: g.cwd });
+
+    expect(r.exitCode).toBe(EXIT.PARTIAL);
+    const report = JSON.parse(r.stderr);
+    expect(report.ingested).toBe(0);
+    expect(report.rejected.length).toBe(2);
+    // The graph is untouched, which is the claim an Operator actually needs before
+    // re-running: nothing landed, so the whole source can be fixed and offered again.
+    expect(readItems(g.db).map((i) => i.entity)).toEqual(["Portal"]);
+  });
+
+  test("a source that cannot be read at all is a different code entirely", () => {
+    const g = spawnGraph({ namespace: "no-source" });
+
+    const missing = runCli(
+      ["import", "--graph", g.namespace, "--from", path.join(g.cwd, "nope.yml")],
+      { cwd: g.cwd },
+    );
+
+    // Distinct from partial, and distinct in kind: no record was offered, so there is
+    // nothing to report per record. This is what DE-20's "total failure" names.
+    expect(missing.exitCode).toBe(EXIT.NOT_FOUND);
+    expect(missing.exitCode).not.toBe(EXIT.PARTIAL);
+    expect(JSON.parse(missing.stderr).rejected).toBeUndefined();
+  });
+});

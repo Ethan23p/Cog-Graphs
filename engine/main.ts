@@ -1188,12 +1188,33 @@ if (command === "import") {
   const taken = new Set(
     (db.query("SELECT name FROM entity").all() as { name: string }[]).map((row) => row.name),
   );
-  const rejected: { index: number; entity: string; reason: string }[] = [];
+  // `entity` is null on a record that failed to name one, rather than "". An empty
+  // string is indistinguishable from a genuine empty name, and the index is then the
+  // only handle the Operator has on that record (DE-20.1).
+  const rejected: { index: number; entity: string | null; reason: string }[] = [];
 
   for (const [index, record] of records.entries()) {
     const item = (record ?? {}) as Record<string, unknown>;
-    const entity = typeof item.entity === "string" ? item.entity : "";
+    const named = item.entity;
     const attributes = (item.attributes ?? {}) as Record<string, unknown>;
+
+    // A record with no name is refused, never ingested under "". An empty-named row is a
+    // real entity in the artifact and in the derived face that no query can name and no
+    // modify-item can reach — and the second one collides with the first, which reported
+    // `entity_exists` against a name the Operator never wrote (DE-20.1).
+    if (named === undefined || named === null || named === "") {
+      rejected.push({ index, entity: null, reason: "missing_value" });
+      continue;
+    }
+    // Its own code, because it is its own fix. `entity: 2001` is a game called 2001 that
+    // YAML read as a number; the answer is to quote it, not to supply a name that is
+    // already there. Coercing it silently is the other option and it is worse — a value
+    // this program invented, in the Operator's data, with nothing saying so.
+    if (typeof named !== "string") {
+      rejected.push({ index, entity: null, reason: "invalid_entity" });
+      continue;
+    }
+    const entity = named;
 
     // Rejected, not merged and not skipped in silence. add-item refuses an entity the
     // graph already holds, and a bulk path that quietly updated it instead would be a
