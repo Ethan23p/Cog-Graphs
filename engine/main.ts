@@ -422,8 +422,66 @@ const EXIT = {
 } as const;
 
 function succeed(payload: Record<string, unknown>): never {
-  process.stdout.write(`${JSON.stringify(payload)}\n`);
+  process.stdout.write(PRETTY ? `${prettyText(payload)}\n` : `${JSON.stringify(payload)}\n`);
   process.exit(EXIT.OK);
+}
+
+/** Was --pretty asked for? Read once, so every writer answers the same way. */
+const PRETTY = argv.includes("--pretty");
+
+/**
+ * The human-readable form (DE-19.8).
+ *
+ * JSON is the default because the Operator is an agent and the output is usually piped;
+ * `--pretty` is for the moments a person is reading over its shoulder. The renderer is
+ * generic — it walks the payload rather than knowing any command's shape — so a command
+ * added later is readable without anyone remembering to teach this function about it.
+ *
+ * The case it exists for is prose. `introduce --interface-skill` is the whole primer, and
+ * as JSON it arrives as a single enormous line with every paragraph break spelled
+ * backslash-n. Multi-line strings are therefore reflowed as real lines rather than
+ * quoted, which is the one thing JSON structurally cannot do.
+ */
+function prettyText(payload: Record<string, unknown>): string {
+  return prettyLines(payload, "").join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function prettyLines(value: unknown, indent: string): string[] {
+  if (value === null || value === undefined) return [`${indent}—`];
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return [`${indent}(none)`];
+    const out: string[] = [];
+    for (const item of value) {
+      if (item !== null && typeof item === "object") {
+        out.push(...prettyLines(item, indent + "  "), "");
+      } else {
+        out.push(`${indent}- ${String(item)}`);
+      }
+    }
+    return out;
+  }
+
+  if (typeof value === "object") {
+    const out: string[] = [];
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      // Keys are snake_case in the payload because that is what a parser wants; a reader
+      // wants words. The label is the only cosmetic liberty taken with the data.
+      const label = key.replace(/_/g, " ");
+      if (child !== null && typeof child === "object") {
+        out.push(`${indent}${label}:`, ...prettyLines(child, indent + "  "), "");
+      } else if (typeof child === "string" && child.includes("\n")) {
+        out.push(`${indent}${label}:`, "");
+        for (const line of child.split("\n")) out.push(line ? `${indent}  ${line}` : "");
+        out.push("");
+      } else {
+        out.push(`${indent}${label}: ${String(child)}`);
+      }
+    }
+    return out;
+  }
+
+  return [`${indent}${String(value)}`];
 }
 
 /**
@@ -432,7 +490,15 @@ function succeed(payload: Record<string, unknown>): never {
  * — an error an agent cannot act on just costs it a turn.
  */
 function fail(status: number, code: string, message: string, next_step: string): never {
-  process.stderr.write(`${JSON.stringify({ code, message, next_step })}\n`);
+  // --pretty covers failures too: an Operator who asked for readable output asked about
+  // the whole surface, and an error is the moment they are most likely to be reading it
+  // themselves. Only the braces go — what went wrong and what to do next are what make
+  // the error actionable, so both survive the change of form (IN-11, DE-19.8).
+  process.stderr.write(
+    PRETTY
+      ? `${prettyText({ error: code, message, next_step })}\n`
+      : `${JSON.stringify({ code, message, next_step })}\n`,
+  );
   process.exit(status);
 }
 
