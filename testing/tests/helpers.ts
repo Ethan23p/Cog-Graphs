@@ -171,6 +171,17 @@ export function makeSandbox(prefix = "cog-test-"): string {
  * sandbox it makes is exactly the situation the guard is supposed to warn about. So the
  * "ordinary directory" side needs somewhere else to live. `testing/.scratch/` is
  * gitignored and stands in for the User's own directory.
+ *
+ * SLOW, and knowingly so. Creating a `.sqlite` in here costs ~1.8s median and up to
+ * ~4.6s, against ~104ms for the identical command under the platform temp root —
+ * measured, on this machine, six runs each. It is not the engine and not bun startup
+ * (`--help` in the same directory is 64ms): it is the cost of writing a new database
+ * file under a developer directory that real-time AV scanning watches and %TEMP% is
+ * exempt from. That is environment, not defect, which is why `bun test` runs with
+ * `--timeout 20000` rather than each slow case being trimmed to fit — the default 5s
+ * made DE-7 and DE-19.4 fail about half of all runs, and an intermittently-lying suite
+ * is worse than a red one. Prefer `makeSandbox` unless a case specifically needs a
+ * directory outside the temp root.
  */
 export function makeOrdinarySandbox(prefix = "cog-test-"): string {
   const scratch = path.join(REPO_ROOT, "testing", ".scratch");

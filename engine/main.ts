@@ -579,7 +579,34 @@ if (command === "initialize") {
     );
   }
 
-  const namespace = profile.namespace as string;
+  // The namespace becomes a filename, so it has to be one path segment and nothing else.
+  //
+  // Unvalidated, it went straight into a path join: `../escaped` created the graph in
+  // the parent directory and reported success with that path in the payload. That is
+  // DE-7's failure — an artifact the User cannot find — reached through a different
+  // door, and worse, because it silently contradicts the `--dir` the Operator gave. An
+  // escaped graph is also invisible to listGraphs, which reads a single directory, so it
+  // can never be introduced or queried again: written and lost in one command.
+  //
+  // Deliberately narrow. Dots, dashes and underscores are how real namespaces read —
+  // `game-recs-Ethan`, `notes.2026` — and a validator that rejected them would push
+  // Operators toward worse names to satisfy the tool.
+  const namespace = (profile.namespace as string).trim();
+  const namespaceIsOneSegment =
+    namespace.length > 0 &&
+    !namespace.includes("/") &&
+    !namespace.includes("\\") &&
+    path.basename(namespace) === namespace &&
+    ![".", ".."].includes(namespace);
+  if (!namespaceIsOneSegment) {
+    fail(
+      EXIT.USAGE,
+      "invalid_namespace",
+      `'${profile.namespace}' cannot be a namespace: it must be a single name, not a path.`,
+      `The namespace becomes the filename of the graph, so it may not contain '/' or '\\\\' or be empty. Pick a plain name like 'game-recs' in ${resolved}, and use --dir to choose where the graph lands.`,
+    );
+  }
+
   const dir = path.resolve(process.cwd(), optionValue("--dir") ?? ".");
 
   // The quiet failure this catches: an Assistant initializes the graph inside its own

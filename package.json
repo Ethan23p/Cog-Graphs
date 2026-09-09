@@ -5,9 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test testing/tests",
+    "test": "bun test --timeout 20000 testing/tests",
     "guard": "bun run testing/guard-frozen.ts",
-    "check": "bun run typecheck && bun run guard && bun test testing/tests",
+    "check": "bun run typecheck && bun run guard && bun test --timeout 20000 testing/tests",
     "eval:smoke": "bun run testing/evals/eval_smoke.ts",
     "verify:claims": "bun run testing/harness/verify-claims.ts",
     "typecheck": "tsc --noEmit"

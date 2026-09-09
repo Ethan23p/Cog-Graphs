@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { makeSandbox, readProfile, runCli, writeProfileYml } from "./helpers";
 import { EXIT, PROFILE_FIELDS, graphFile } from "./contract";
 import { makeOrdinarySandbox } from "./helpers";
+import { existsSync, readdirSync } from "node:fs";
 
 describe("DE-6 — the stored profile matches the imported .yml", () => {
   // The profile is the identity of this instantiation and it lives inside the artifact,
@@ -74,4 +75,72 @@ describe("DE-7 — temp-directory guard, both directions", () => {
     expect(Array.isArray(payload.warnings)).toBe(true);
     expect(payload.warnings.some((w: { code: string }) => w.code === "temp_directory")).toBe(false);
   });
+});
+
+describe("DE-19.4 (minted) — the namespace must be a single path segment", () => {
+  // MINTED at the DE-17 → DE-19 boundary, found by /code-review. PROFILE_FIELDS were
+  // only checked with `typeof === "string"`, so the namespace went straight into a path
+  // join: `namespace: ../escaped` run from one directory created the graph in its
+  // *parent* and reported success, with the escaped path in the payload.
+  //
+  // This is the same failure DE-7 exists to prevent, arriving through a different door.
+  // The temp-directory guard is about an artifact the User cannot find; so is this, and
+  // it is worse, because it silently contradicts the `--dir` the Operator explicitly
+  // gave. A namespace that escapes is also invisible to `listGraphs`, which reads one
+  // directory, so the graph cannot be introduced or queried afterwards — it is written
+  // and lost in the same command.
+  const bad: { label: string; namespace: string }[] = [
+    { label: "a parent-directory traversal", namespace: "../escaped" },
+    { label: "a nested path", namespace: "sub/graph" },
+    { label: "a Windows-style path", namespace: "sub\\graph" },
+    { label: "an absolute path", namespace: "/tmp/absolute" },
+    { label: "whitespace only", namespace: "   " },
+    { label: "empty", namespace: "" },
+  ];
+
+  for (const { label, namespace } of bad) {
+    test(`refuses ${label}`, () => {
+      const cwd = makeOrdinarySandbox();
+      const profilePath = path.join(cwd, "profile.yml");
+      writeProfileYml(
+        profilePath,
+        { namespace, "use-pattern": "manual", description: "Namespace validation." },
+        "Every entity carries a status.",
+      );
+
+      const r = runCli(["initialize", "--profile", profilePath], { cwd });
+
+      expect(r.exitCode).toBe(EXIT.USAGE);
+      const error = JSON.parse(r.stderr);
+      expect(error.code).toBe("invalid_namespace");
+      expect(error.next_step.trim().length).toBeGreaterThan(0);
+      // Refusing while still writing the file would be the worst of both.
+      expect(readdirSync(cwd).filter((f) => f.endsWith(".sqlite"))).toEqual([]);
+    });
+  }
+
+  // The guard has to stay narrow. Dots, dashes and underscores are how real namespaces
+  // read — `game-recs-Ethan`, `file-reports`, `notes.2026` — and a validator that
+  // rejected them would push Operators toward worse names to satisfy the tool.
+  //
+  // One test per name rather than a loop inside one test: each of these writes a
+  // database into `testing/.scratch/`, which is ~1.8s a time on this machine (see
+  // makeOrdinarySandbox), so a four-name loop is a single ~7s test for no benefit and
+  // reports only the first name that breaks.
+  for (const namespace of ["game-recs", "file_reports", "notes.2026", "Graph1"]) {
+    test(`accepts the ordinary namespace '${namespace}'`, () => {
+      const cwd = makeOrdinarySandbox();
+      const profilePath = path.join(cwd, "profile.yml");
+      writeProfileYml(
+        profilePath,
+        { namespace, "use-pattern": "manual", description: "Ordinary namespace." },
+        "Every entity carries a status.",
+      );
+
+      const r = runCli(["initialize", "--profile", profilePath], { cwd });
+
+      expect(r.exitCode).toBe(EXIT.OK);
+      expect(existsSync(graphFile(cwd, namespace))).toBe(true);
+    });
+  }
 });
