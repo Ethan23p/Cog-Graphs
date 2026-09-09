@@ -1,6 +1,14 @@
 // Harness types — the contract for eval definitions.
+//
+// Checkpoint and Violation live in ./checkpoint, which is deliberately free of both the
+// SDK and this file: IN-5 runs in the free layer against a scripted lifecycle, and the
+// paid scenarios call the same functions between turns.
 // Deliberately SDK-free: eval definitions import only from harness/runtime.ts,
 // and everything they touch is defined here in plain TS.
+
+import type { Checkpoint, Violation } from "./checkpoint";
+
+export type { Checkpoint, Violation };
 
 export interface ScenarioDefinition {
   name: string;
@@ -38,6 +46,14 @@ export interface ScenarioDefinition {
   haltOnGateFailure?: boolean;
   /** Overall scenario wall-clock timeout in ms. Default: 5 minutes. */
   timeoutMs?: number;
+  /**
+   * Check IN-5 over the run's checkpoints. Default: true.
+   *
+   * On by default because an invariant that each scenario has to remember to ask for is an
+   * invariant most scenarios will not have. Turn it off only for a scenario whose subject
+   * is destruction.
+   */
+  checkRegressions?: boolean;
   /** Optional LLM-as-judge slot; receives the full raw transcript. */
   grade?: (transcript: CapturedMessage[]) => Promise<GradeVerdict>;
 }
@@ -50,6 +66,24 @@ export interface PluginConfig {
 
 export interface TurnDef {
   user: string;
+  /**
+   * Begin this turn in a NEW session over the same sandbox: no shared context, same
+   * tooling, same cwd.
+   *
+   * The Walking Skeleton has this as a step of its own — "starting a fresh thread in
+   * Claude Code" — and it is not decoration. Everything the first thread learned about the
+   * graph is gone, so the second thread has to re-orient from the artifact and the CLI
+   * alone. Simulating it with a "forget what I said" turn tests the model's compliance
+   * instead of the interface's legibility, which is the opposite of the claim.
+   */
+  freshThread?: boolean;
+  /**
+   * Entity names this turn is permitted to change or remove (IN-5).
+   *
+   * Declared before the turn runs, and scoped to it. Deciding after the fact which changes
+   * look intentional is the version of the invariant that can never fail.
+   */
+  mayChange?: string[];
   /** Runs after the agent finishes responding to this turn. Assertions are collected, never thrown. */
   gate?: (ctx: GateContext) => void | Promise<void>;
 }
@@ -144,6 +178,10 @@ export interface GradeVerdict {
 export interface ScenarioResult {
   pass: boolean;
   gates: GateResult[];
+  /** One snapshot of every graph in the sandbox, taken before turn 1 and after every gate. */
+  checkpoints: Checkpoint[];
+  /** IN-5 violations found across those checkpoints. Empty on a passing run. */
+  regressions: Violation[];
   stats: Stats;
   artifactsDir: string;
   transcript: CapturedMessage[];

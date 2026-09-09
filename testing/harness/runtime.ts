@@ -8,6 +8,7 @@ import { mkdtemp, mkdir, cp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { Transcript } from "./transcript";
+import { capture, regressions, type Checkpoint, type Violation } from "./checkpoint";
 import { writeArtifacts, writePartialArtifacts, createArtifactsDir, printReport } from "./report";
 import type {
   GateContext,
@@ -15,10 +16,13 @@ import type {
   ScenarioDefinition,
   ScenarioResult,
   Stats,
+  TurnDef,
   TurnView,
 } from "./types";
 
 export type { ScenarioDefinition, ScenarioResult, GateContext, TurnView, PluginConfig } from "./types";
+export { capture, regressions } from "./checkpoint";
+export type { Checkpoint, Violation } from "./checkpoint";
 export { judge } from "./judge";
 
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
@@ -160,14 +164,15 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     },
   };
 
-  const inbox = new AsyncQueue<SDKUserMessage>();
   const wallClockMsPerTurn: number[] = [];
+
+  // Checkpoint zero is taken before the agent has said anything, so the first turn is
+  // inside the comparison rather than defining the baseline it is judged against (IN-5).
+  const checkpoints: Checkpoint[] = [capture(sandbox, "before turn 1")];
 
   let turnIndex = 0;
   let halted = false;
-  transcript.beginTurn();
   let turnStartedAt = Date.now();
-  inbox.push(userMessage(def.turns[0].user));
 
   const makeGateContext = (lastTurn: TurnView): GateContext => ({
     sandboxPath: (rel) => path.join(sandbox, rel),
@@ -178,62 +183,122 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     exec: (cmd) => execInSandbox(cmd, sandbox),
   });
 
-  try {
+  // Segments. A turn marked `freshThread` opens a new session over the same sandbox, so
+  // the run is a sequence of sessions rather than one — which is what the Walking
+  // Skeleton's "starting a fresh thread" step actually is. Everything else is shared:
+  // cwd, tooling, and the artifact on disk, which is the whole point of the step.
+  const segments: TurnDef[][] = [];
+  for (const turn of def.turns) {
+    if (segments.length === 0 || turn.freshThread) segments.push([]);
+    segments[segments.length - 1]!.push(turn);
+  }
+
+  const runSegment = async (count: number): Promise<void> => {
+    const inbox = new AsyncQueue<SDKUserMessage>();
+    let remaining = count;
+    transcript.beginTurn();
+    turnStartedAt = Date.now();
+    inbox.push(userMessage(def.turns[turnIndex]!.user));
+
     const session = query({ prompt: inbox, options });
-    for await (const msg of session as AsyncIterable<SDKMessage>) {
-      transcript.record(msg);
+    try {
+      for await (const msg of session as AsyncIterable<SDKMessage>) {
+        transcript.record(msg);
 
-      // Turn-completion signal. Empirically: exactly one `result` message per
-      // user turn, after that turn's assistant messages; per-turn (not
-      // cumulative) usage/cost. No `session_state_changed` message was observed
-      // at all in this mode, so `result` is the signal we key on.
-      // Claims E1/E2/E3 in testing/harness/IMPLEMENTATION.md carry the steps to re-verify this against a
-      // new SDK build. If a future SDK stops emitting per-turn results, fall back
-      // to `system/session_state_changed {state:'idle'}`.
-      if (msg.type === "result") {
-        wallClockMsPerTurn.push(Date.now() - turnStartedAt);
-        const turnDef = def.turns[turnIndex];
-        const view = transcript.endTurn(turnDef.user, msg);
+        // Turn-completion signal. Empirically: exactly one `result` message per
+        // user turn, after that turn's assistant messages; per-turn (not
+        // cumulative) usage/cost. No `session_state_changed` message was observed
+        // at all in this mode, so `result` is the signal we key on.
+        // Claims E1/E2/E3 in testing/harness/IMPLEMENTATION.md carry the steps to re-verify this against a
+        // new SDK build. If a future SDK stops emitting per-turn results, fall back
+        // to `system/session_state_changed {state:'idle'}`.
+        if (msg.type === "result") {
+          wallClockMsPerTurn.push(Date.now() - turnStartedAt);
+          const turnDef = def.turns[turnIndex];
+          const view = transcript.endTurn(turnDef.user, msg);
 
-        const gate = turnDef.gate;
-        if (gate) {
-          const before = gates.length;
-          try {
-            await gate(makeGateContext(view));
-          } catch (e) {
-            gates.push({ turn: turnIndex, label: `gate threw: ${e instanceof Error ? e.message : String(e)}`, pass: false });
+          const gate = turnDef.gate;
+          if (gate) {
+            const before = gates.length;
+            try {
+              await gate(makeGateContext(view));
+            } catch (e) {
+              gates.push({ turn: turnIndex, label: `gate threw: ${e instanceof Error ? e.message : String(e)}`, pass: false });
+            }
+            if (gates.slice(before).some((g) => !g.pass) && def.haltOnGateFailure) halted = true;
           }
-          if (gates.slice(before).some((g) => !g.pass) && def.haltOnGateFailure) halted = true;
-        }
-        if (msg.subtype !== "success") {
-          gates.push({ turn: turnIndex, label: `result was ${msg.subtype}`, pass: false });
-          halted = true; // budget/turn-cap errors end the session anyway
-        }
+          if (msg.subtype !== "success") {
+            gates.push({ turn: turnIndex, label: `result was ${msg.subtype}`, pass: false });
+            halted = true; // budget/turn-cap errors end the session anyway
+          }
 
-        const turnGates = gates.filter((g) => g.turn === turnIndex);
-        const nFail = turnGates.filter((g) => !g.pass).length;
-        const costSoFar = transcript.turns.reduce((c, t) => c + t.costUsd, 0);
-        progress(
-          `turn ${turnIndex + 1}/${def.turns.length} done in ${((Date.now() - turnStartedAt) / 1000).toFixed(1)}s — gates: ${turnGates.length - nFail} pass${nFail ? `, ${nFail} FAIL` : ""} — $${costSoFar.toFixed(2)} so far`,
-        );
-        await writePartialArtifacts(artifactsDir, def.name, transcript.messages, transcript.turns, gates);
+          const turnGates = gates.filter((g) => g.turn === turnIndex);
+          const nFail = turnGates.filter((g) => !g.pass).length;
+          const costSoFar = transcript.turns.reduce((c, t) => c + t.costUsd, 0);
+          progress(
+            `turn ${turnIndex + 1}/${def.turns.length} done in ${((Date.now() - turnStartedAt) / 1000).toFixed(1)}s — gates: ${turnGates.length - nFail} pass${nFail ? `, ${nFail} FAIL` : ""} — $${costSoFar.toFixed(2)} so far`,
+          );
+          await writePartialArtifacts(artifactsDir, def.name, transcript.messages, transcript.turns, gates);
 
-        turnIndex++;
-        if (!halted && turnIndex < def.turns.length) {
-          transcript.beginTurn();
-          turnStartedAt = Date.now();
-          inbox.push(userMessage(def.turns[turnIndex].user));
-        } else {
-          inbox.close();
+          // Taken after the gate, so a gate that reads the graph cannot be blamed for a
+          // change it merely observed, and labelled by the turn that produced it.
+          checkpoints.push(capture(sandbox, `after turn ${turnIndex + 1}`));
+
+          turnIndex++;
+          remaining--;
+          if (!halted && remaining > 0) {
+            transcript.beginTurn();
+            turnStartedAt = Date.now();
+            inbox.push(userMessage(def.turns[turnIndex]!.user));
+          } else {
+            inbox.close();
+          }
         }
       }
+    } finally {
+      inbox.close();
+    }
+  };
+
+  try {
+    for (const segment of segments) {
+      if (halted) break;
+      if (turnIndex > 0) progress(`fresh thread — new session, same sandbox`);
+      await runSegment(segment.length);
     }
   } catch (e) {
     fatalError = e instanceof Error ? e.message : String(e);
     gates.push({ turn: turnIndex, label: `runtime error: ${fatalError}`, pass: false });
   } finally {
     clearTimeout(timer);
-    inbox.close();
+  }
+
+  // IN-5 over the whole run. Permission is read from the turn that produced the *later*
+  // checkpoint, per step, so a turn allowed to modify one entity has said nothing about
+  // any other turn.
+  let violations: Violation[] = [];
+  if (def.checkRegressions !== false) {
+    violations = regressions(checkpoints, (_from, to) => {
+      const at = Number(/after turn (\d+)/.exec(to.label)?.[1]);
+      return Number.isFinite(at) ? def.turns[at - 1]?.mayChange ?? [] : [];
+    });
+    // The counts are in the label because a vacuous pass and a real one read identically
+    // otherwise: a scenario that never made a graph satisfies IN-5 perfectly, and a gate
+    // saying so without saying how much it looked at is the kind of green that stops
+    // meaning anything.
+    const watched = new Set(checkpoints.flatMap((c) => Object.keys(c.graphs)));
+    const items = checkpoints.reduce(
+      (n, c) => Math.max(n, Object.values(c.graphs).reduce((m, g) => m + Object.keys(g).length, 0)),
+      0,
+    );
+    gates.push({
+      turn: -1,
+      label:
+        violations.length === 0
+          ? `IN-5: nothing regressed across ${checkpoints.length} checkpoints (${watched.size} graph(s), up to ${items} item(s))`
+          : `IN-5: ${violations.length} regression(s) — ${violations.map((v) => v.detail).join("; ")}`,
+      pass: violations.length === 0,
+    });
   }
 
   const sandboxAfter = await snapshotDir(sandbox);
@@ -256,6 +321,8 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
   const result: ScenarioResult = {
     pass,
     gates,
+    checkpoints,
+    regressions: violations,
     stats,
     artifactsDir: "",
     transcript: transcript.messages,
