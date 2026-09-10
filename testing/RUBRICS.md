@@ -9,8 +9,7 @@ rather than a vibe:
 
 1. **The claim**, quoted from the doc, unedited.
 2. **Where it attaches** — which scenario and which turns.
-3. **The projection** — exactly what the judge is shown. Never the whole transcript by
-   default, never the gate labels, never the case ID or its text.
+3. **The projection** — exactly what the judge is shown, and never the case ID or its text.
 4. **The verdict rule**, with an explicit disqualifier list and an explicit *non*-disqualifier
    list. The second list is what stops one rubric from punishing what another rewards.
 5. **The calibration pair** — one hand-written transcript that must pass and one that must
@@ -40,8 +39,42 @@ case has a reference solution"), and it runs on every rubric edit.
 
 - **One judge call per case.** A single call returning seven verdicts is cheaper and lets one
   rubric's reasoning contaminate the next; a failure also stops localizing.
-- **The judge sees a projection, not the transcript.** It never sees gate labels, case IDs,
-  or the case text — otherwise it grades whether the run *looked* successful.
+- **The judge sees a projection, not the whole transcript.** Two reasons, and only the
+  first is about correctness of the verdict.
+
+  For RU-2, RU-4 and RU-7 the wide view *defeats the claim*: each of those cases asks
+  whether something can be established from a specific, limited amount of information, so
+  handing the judge more than that amount answers a different question. RU-4 shown the tool
+  calls grades whether the explanation was accurate rather than whether it was necessary;
+  RU-7 shown the `code` and `message` reads a restatement as informative, because it now
+  holds the context that makes the restatement feel like it says something; RU-2 shown turns
+  1–4 cannot tell orientation from a lucky guess, since what the first thread named things is
+  exactly what the cold thread does not know.
+
+  For the rest it is about drift. The doc's own annotation on RU-4 warns that the rubric
+  drifts run to run without an anchor, and a ~200KB JSON transcript is the drift surface: the
+  judge finds different salient material on different runs and the verdict moves while the
+  engine stands still. Narrowing the input is the same move as the closed term list, applied
+  to the input instead of the criteria.
+
+  **What the projection is *not* protecting against:** the transcript does not contain the
+  gates' verdicts. `runScenario` keeps assertion labels in a separate `gates` array and hands
+  `grade()` only the recorded SDK messages, so no case ID, assertion text or pass/fail ever
+  reaches a judge (`runtime.ts`, `transcript.record` vs `gates.push`). The real version of
+  that hazard is narrower and worth stating plainly: the transcript carries the *agent's own
+  self-report* — prose claiming the work was done, and the CLI's own success output — which is
+  the party under evaluation telling the judge it succeeded. That is the hazard the Walking
+  Skeleton header already names ("grading prose is how an eval starts rewarding an agent that
+  *says* it stored something"), and it argues specifically for RU-5's artifact-only
+  projection, not for narrowing everywhere.
+
+- **The cost of a projection, stated so it is not forgotten.** Projecting is deciding in
+  advance what could possibly be relevant. Project wrongly and the judge cannot see evidence
+  that would have changed its verdict, and the rubric fails *invisibly* — the report looks
+  identical. The calibration pair only partly covers this: a negative fixture proves the
+  rubric catches the failure that was anticipated, not that the projection preserved evidence
+  for one that was not. Any rubric whose verdicts look stable but wrong should have its
+  projection widened first, before its wording is touched.
 - **Evidence is mandatory.** Verdict schema:
   `{ pass: boolean, evidence: string[], reasoning: string, observations: string[] }`.
   Each rubric ends with: *if you cannot cite a specific message or command as evidence, the
