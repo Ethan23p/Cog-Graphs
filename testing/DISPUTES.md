@@ -41,7 +41,28 @@ to make a suite lie.
 
 ## Open
 
-_None._
+### Walking Skeleton turn 5: "modifying a couple items" passes with nothing modified
+- **Raised**: 2026-09-10 by Claude, while drafting the rubric layer.
+- **The case says**: `testing/evals/eval_walking_skeleton.ts`, turn 5 (fresh thread). The
+  User says *"I gave up on Hades for good, and I finally finished Portal 2 — can you update
+  my games list to match?"* The gate asserts that the items' values match
+  `/complete|finished|played|done/` and `/abandon|dropped|gave up|quit|shelved/`. The doc's
+  step is "modifying a couple items".
+- **The problem**: turn 3's user line (*"Portal 2, which I loved, and Hades, which I
+  bounced off after a few runs"*) already lets an agent record `played` and `dropped`, and
+  in the passing run of 2026-09-09T20-59 it did. At turn 5 the cold thread read the graph,
+  concluded *"Nothing needed changing"*, and ran no `modify-item`: **0 of the run's 15
+  tool calls**. The gate went green on turn 3's values. The case can pass without the step
+  it exists to cover being exercised, so the Walking Skeleton's green says nothing about
+  `modify-item` through a live agent.
+- **What I did instead**: left it as is. The file is frozen and the fix lives in the
+  scenario's user lines, which is the scenario's spec.
+- **What I'd recommend**: make turn 3 leave room for a real change (e.g. *"Portal 2, which
+  I'm about halfway through"*), and append a gate asserting that at least one item's
+  values differ between the checkpoints either side of turn 5, so a no-op can never pass
+  again. Separately, whether "finally finished" and "for good" should have been recorded
+  as new information is a rubric question, raised as D8 in `testing/rubrics/DRAFTS.md`.
+- **Resolution**: _Ethan._
 
 ## Resolved
 
