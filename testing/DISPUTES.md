@@ -71,8 +71,10 @@ _None._
   material. Tightening earlier work is a normal part of the process: "sometimes you'll
   need to tighten up implementation from earlier." I read that as blessing a rewrite of
   the scenario's user turns. The eval file is frozen, so the rewrite will land citing this
-  resolution. It has not been done yet, and it is listed as step 3 of the order in
-  `testing/rubrics/DRAFTS.md`.
+  resolution. **Landed 2026-09-11**, as recommended: turn 3 now reads *"Portal 2, which I'm
+  about halfway through and loving"*, and a check appended below DE-24 fails the run unless
+  Portal 2's values differ between the checkpoints either side of turn 5. Turn 3's user
+  line is the one line of `eval_walking_skeleton.ts` that changed.
 
 ### IN-9/IN-10/IN-11 — the "unbuilt command" row named `import` in a literal
 - **Raised**: 2026-09-09 by Claude, during DE-19.

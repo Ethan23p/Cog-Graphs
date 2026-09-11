@@ -165,8 +165,8 @@ const scenario: ScenarioDefinition = {
     // 3 — adding a couple of items.
     {
       user:
-        "Great. Let's put in a couple I've played: Portal 2, which I loved, and Hades, which " +
-        "I bounced off after a few runs.",
+        "Great. Let's put in a couple I've played: Portal 2, which I'm about halfway through " +
+        "and loving, and Hades, which I bounced off after a few runs.",
       gate: (ctx) => {
         const graphs = graphsIn(ctx.sandboxPath("."));
         const portal = find(graphs, PORTAL);
@@ -314,5 +314,33 @@ console.error(
     `${result.stats.totalInputTokens + result.stats.totalOutputTokens} tokens (in+out), ` +
     `$${result.stats.totalCostUsd.toFixed(3)}`,
 );
+
+// Turn 5 has to change something (the resolved dispute of 2026-09-11 in testing/DISPUTES.md,
+// "Walking Skeleton turn 5"). Turn 3 used to let an agent record Portal 2 as played, so the
+// fresh thread could find nothing to change, run no modify-item at all, and still pass: turn
+// 5's gate reads values, and turn 3 had already written them. Turn 3 now leaves Portal 2
+// half-played, so finishing it is a real change, and this asserts the change was made:
+// Portal 2's values differ between the checkpoints either side of turn 5. Checkpoint 0 is
+// taken before turn 1 and one more after each turn's gate, so those are 4 and 5.
+// Appended here rather than written into turn 5's gate: this file is frozen, and the gate
+// is not handed the checkpoint from before its turn.
+const portalAt = (i: number): Record<string, string> | undefined => {
+  for (const state of Object.values(result.checkpoints[i]?.graphs ?? {})) {
+    for (const [entity, attributes] of Object.entries(state)) if (PORTAL.test(entity)) return attributes;
+  }
+  return undefined;
+};
+const portalBefore = portalAt(4);
+const portalAfter = portalAt(5);
+const turn5Changed =
+  portalBefore !== undefined && portalAfter !== undefined && JSON.stringify(portalBefore) !== JSON.stringify(portalAfter);
+console.error(
+  `[walking-skeleton] turn 5 changed Portal 2: ${turn5Changed ? "yes" : "NO"} ` +
+    `(${JSON.stringify(portalBefore ?? null)} -> ${JSON.stringify(portalAfter ?? null)})`,
+);
+if (!turn5Changed) {
+  console.error(`[walking-skeleton] FAIL — the fresh thread did not change Portal 2, which the User had just finished`);
+  process.exit(1);
+}
 
 process.exit(result.pass && strays.length === 0 ? 0 : 1);
