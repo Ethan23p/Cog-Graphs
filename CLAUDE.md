@@ -121,15 +121,16 @@ The doc's case list is not complete, and discovering that is normal rather than 
 layer pinning it, that hole is your next vertical slice.** Own it: mint the case, take it
 red → green, carry on. You are the engineer; this is the job, not a question to escalate.
 
-Mint the ID sub-numbered off the slice you were in when you found it — a hole noticed while
-opening DE-19 becomes `DE-19.1`. Do the minted cases before the slice they hang off, since
-they are usually prerequisites you tripped over on the way in.
+Number a minted case **by subject first**: sub-number it off the case whose claim it
+extends, so the ID tells the next reader where to look. A hole found while sweeping
+IN-9/10/11 that extends DE-7's claim is `DE-7.1`. Fall back to **the slice you were in
+when you found it** only when no existing case is its subject (Ethan, 2026-09-11). The
+DE-19.1–19.8 block predates the rule and keeps its provenance numbers: those IDs are cited
+in commits, disputes and `IMPLEMENTATION.md`, and renumbering would break every one of
+those pointers for the sake of tidiness.
 
-*Open, awaiting Ethan.* Provenance is not always the most useful thing an ID carries: a hole
-found while sweeping IN-9/10/11 that extends DE-7's claim is `IN-9.1` by provenance and
-`DE-7.1` by subject, and only the second tells the next reader where to look. Seven cases
-now use the subject-based form (DE-7.1, DE-19.6.1, DE-19.7.1, DE-19.8.1, DE-19.8.2, IN-4.1,
-IN-10.1), each flagged in its commit and listed in `CASES.md`. Renaming later costs a commit.
+Do the minted cases before the slice they hang off, since they are usually prerequisites
+you tripped over on the way in.
 
 A minted case is a case: it goes in `testing/tests/*.test.ts`, it is frozen once green, and
 it is written to the same standard — a specific failure it rules out, in a comment, in the

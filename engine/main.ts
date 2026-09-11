@@ -51,6 +51,34 @@ const PROFILE_DEFAULTS: Record<string, string> = { "use-pattern": "manual" };
 const WITHHELD_PROFILE_FIELDS = new Set<string>(["use-pattern"]);
 const shownProfileFields = PROFILE_FIELDS.filter((f) => !WITHHELD_PROFILE_FIELDS.has(f));
 
+// The two files an Operator writes for the CLI, as samples it accepts verbatim. They are
+// served under 'files' in the --help of the command that takes them, and the primer shows
+// the same text, so there is one source for each shape (DE-5.1). DE-5.1 imports them back
+// through the real parser, so help cannot drift from what the command accepts.
+//
+// The items shape is add-item in data form, and it is exactly what `query` returns, so a
+// query's output imports as it is. Ethan ratified it on 2026-09-11.
+const PROFILE_SAMPLE = [
+  "profile:",
+  "  namespace: my-list",
+  "  description: What this graph is for, in the User's words.",
+  "convention: |",
+  "  Every item carries a status.",
+  "",
+].join("\n");
+const ITEMS_SAMPLE = [
+  "items:",
+  "  - entity: First item",
+  "    attributes:",
+  "      status: open",
+  "  - entity: Second item",
+  "    attributes:",
+  "      status: done",
+  "      note: Anything the User said about it.",
+  "",
+].join("\n");
+const indented = (text: string) => text.trimEnd().split("\n").map((line) => "  " + line);
+
 /**
  * `introduce` answers as one of two things and the payload says which, so an Operator
  * never has to infer from the shape whether they were told about a graph or about the
@@ -145,11 +173,7 @@ const INTERFACE_SKILL_PRIMER = [
   "Establish the profile with the User conversationally — a namespace, and a",
   "description in their words — then write it to a one-time-use `.yml` and pass it in:",
   "",
-  "  profile:",
-  "    namespace: my-list",
-  "    description: What this graph is for, in the User's words.",
-  "  convention: |",
-  "    Every item carries a status.",
+  ...indented(PROFILE_SAMPLE),
   "",
   "  cog-graphs initialize --profile <profile.yml> [--dir <path>]",
   "",
@@ -172,6 +196,15 @@ const INTERFACE_SKILL_PRIMER = [
   "`add-item` refuses an entity that already exists and `modify-item` refuses one that",
   "does not, so the two never silently do each other's job.",
   "",
+  "To bring in many at once, write them to a .yml and import it. The file is the shape",
+  "`query` returns, so a query's output imports as it is:",
+  "",
+  ...indented(ITEMS_SAMPLE),
+  "",
+  "  cog-graphs import --graph <namespace> --from <items.yml>",
+  "",
+  "Import is partial with report: valid records land, and each rejected one is named.",
+  "",
   "## Coming in cold",
   "",
   "  cog-graphs introduce --graph <namespace>",
@@ -188,6 +221,8 @@ interface Help {
   optional: Record<string, string>;
   examples: string[];
   notes?: string[];
+  /** A sample of each file a flag takes, accepted verbatim by the command (DE-5.1). */
+  files?: Record<string, string>;
 }
 
 // Help is data, and it is a deliverable: DE-5 sweeps every command for its required
@@ -213,11 +248,12 @@ const HELP: Record<string, Help> = {
     usage: "cog-graphs initialize --profile <file.yml> [--dir <path>]",
     required: {
       "--profile":
-        "Path to a .yml holding a 'profile:' map (namespace, description) and a 'convention:' string to seed the graph with.",
+        "Path to a .yml holding a 'profile:' map (namespace, description) and a 'convention:' string to seed the graph with. A sample is under 'files'.",
     },
     optional: {
       "--dir": "Directory to create the graph in. Defaults to the working directory.",
     },
+    files: { "--profile": PROFILE_SAMPLE },
     examples: [
       "cog-graphs initialize --profile ./profile.yml",
       "cog-graphs initialize --profile ./profile.yml --dir 'D:/Shared Files'",
@@ -260,8 +296,12 @@ const HELP: Record<string, Help> = {
   import: {
     summary: "Bulk-ingest many items from a .yml in one invocation.",
     usage: "cog-graphs import --from <items.yml> [--graph <namespace>]",
-    required: { "--from": "Path to a .yml holding the items to ingest." },
+    required: {
+      "--from":
+        "Path to a .yml holding the items to ingest. A sample is under 'files'; it is the shape query returns.",
+    },
     optional: { "--graph": "Which graph to ingest into, when the directory holds more than one." },
+    files: { "--from": ITEMS_SAMPLE },
     examples: ["cog-graphs import --graph my-list --from ./items.yml"],
     notes: [
       "Partial with report: valid records are committed and invalid ones are rejected, never all-or-nothing. The exit code is distinct from both clean success and total failure, and the report arrives on stderr carrying 'ingested' and a 'rejected' list that names each offender by 'entity' and by 'index' — its zero-based position in the source's items list.",

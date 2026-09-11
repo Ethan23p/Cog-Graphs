@@ -255,9 +255,14 @@ An entity and its attribute map, so an agent that has read `add-item --help` can
 without a second lesson, and the two surfaces cannot drift into different models of what an
 item is. The doc ratifies the grammar and the flow (RU-6) and never says what is in the file,
 so this shape is owned here rather than derived.
-*Cited:* DE-19; the `import` branch. *Probe:* **none** — this is a design choice, not a claim
-about the code, and it is listed under *Owed to Ethan* for ratification rather than defended
-here. An entry with no probe must say so.
+It is also exactly the shape `query` returns, so a query's output imports as it is (checked
+2026-09-11: raw `query` output from one graph imported into another, 2 of 2 items with their
+attributes). Ratified by Ethan on 2026-09-11. The sample in `import --help` (under `files`) and
+in the primer come from one constant, `ITEMS_SAMPLE`.
+*Cited:* DE-19, DE-5.1; the `import` branch; `ITEMS_SAMPLE`. *Probe:* write `ITEMS_SAMPLE`'s
+first record flat (`status: open` beside `entity`, no `attributes:` map). DE-5.1's import case
+goes red and its initialize case stays green (run 2026-09-11). Delete `files` from
+`initialize`'s help and the initialize case goes red alone.
 
 **A partial ingestion reports as a structured error on stderr, not as a success payload.**
 The obvious shape is exit 0 with a `rejected` array in the stdout payload. IN-9 forbids it: one
@@ -523,19 +528,13 @@ does not belong in this table.
 
 ## Owed to Ethan
 
-- **The `items.yml` shape is mine, not the doc's.** The doc ratifies `cog-graphs import --graph
-  <ns> --from <items.yml>` and never says what is in the file. It mirrors `add-item` in data form
-  so an agent that read `add-item --help` can write it without a second lesson, and the two
-  surfaces cannot drift into different models of what an item is. Ratify or replace. **This is the
-  one entry above with no probe**, and it says so.
-- **The IN-9/10/11 amendment was applied under precedent, not under a direct ruling.** The
-  "unbuilt command" row named `import` in a literal — the identical defect Ethan resolved in
-  DE-19.3 — in a file that dispute did not name. Recorded in `testing/DISPUTES.md`; confirm or
-  reverse.
-- **Minted-case numbering.** Seven cases use subject-based sub-numbering (DE-7.1, IN-4.1, IN-10.1)
-  rather than the mint-by-slice rule. Open question in `CLAUDE.md`. DE-20.1/.2/.3 are neutral —
-  found at DE-20 and extending DE-20, so both rules agree.
-- **`index` is zero-based, and that is my call.** DE-20 asks the report to name an offender "by
-  position", which is ambiguous between the ordinal a human counts and the subscript an agent
-  indexes with. The field is named `index` so the name settles it, and the reader is an agent about
-  to go back into the array it just wrote. Ratify or flip.
+Nothing, as of 2026-09-11. Ethan's four rulings that day, for the record:
+
+- **The `items.yml` shape: ratified.** See the entry above. Checking it also turned up a
+  hole: no surface showed the shape. That is now DE-5.1.
+- **The IN-9/10/11 amendment: confirmed.** See `testing/DISPUTES.md`.
+- **Minted-case numbering: by subject first, by the slice in progress second.** The rule
+  is in `CLAUDE.md`. The DE-19.1–19.8 block keeps its provenance numbers, because its IDs
+  are cited everywhere.
+- **Zero-based `index`: ratified.** The field's name settles the ambiguity in "by
+  position", and its reader is an agent indexing back into the array it just wrote.

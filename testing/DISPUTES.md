@@ -104,6 +104,7 @@ _None._
   from a literal to the CLI") and blessed DE-19, which cannot land while this row names
   `import`. Ethan confirms or reverses; I did not treat the precedent as covering
   anything beyond the identical defect in a second file.
+  **Confirmed by Ethan, 2026-09-11.**
 
 ### DE-19.3 — the unbuilt-command sweep cannot empty itself, and blocks DE-19
 - **Raised**: 2026-09-08 by Claude

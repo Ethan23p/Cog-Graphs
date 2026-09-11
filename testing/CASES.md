@@ -137,9 +137,10 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 ## Minted — holes found by the loop
 
 Cases the doc does not list, covering behavior it already implies. Minted under the rule
-in `CLAUDE.md` ("A hole in the cases is the next slice"), IDs sub-numbered off whichever
-slice was in progress when the hole surfaced. These are frozen once green like any other
-case, and are pending Ethan's ratification into the doc.
+in `CLAUDE.md` ("A hole in the cases is the next slice"). IDs are sub-numbered by subject
+first (the case whose claim they extend) and by the slice in progress second. The
+DE-19.1–19.8 block predates that rule and keeps its provenance numbers. These are frozen
+once green like any other case, and are pending Ethan's ratification into the doc.
 
 - **DE-10.1** Selection filtering: `query --attr k=v` returns only items carrying that
   pair, `--exclude k=v` drops items carrying it, and repeated flags compose.
@@ -262,3 +263,12 @@ question either way.
     source-fidelity and Just-in-Time Intelligence principles. Rubric text is in
     `testing/rubrics/DRAFTS.md`. Sub-numbered off RU-5 (the data the Assistant stores)
     under the subject-based rule.
+- **DE-5.1** A flag that takes a file documents that file in `--help` (under `files`), as a
+  sample the command accepts verbatim: `initialize --profile` and `import --from`.
+  - Found 2026-09-11 while ratifying the `items.yml` shape. The shape was sound, and it is
+    exactly what `query` returns, but no surface showed it: not `import --help`, not the
+    primer, not the overview. An agent could learn it only by guessing, and RU-6's flow
+    runs through that file. It is asserted by round trip, so help cannot drift from the
+    parser, and it requires every imported record to keep its attributes, because a flat
+    sample ingests its entities cleanly and silently drops the data. Numbered by subject
+    (DE-5 is the `--help` deliverable).
