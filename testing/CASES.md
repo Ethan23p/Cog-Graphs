@@ -131,3 +131,144 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - **JU-1** Ethan runs the Walking Skeleton manually end to end and records concerns.
 - **JU-2** Every automated case has a reference solution: a known-good command transcript that passes all of its graders.
   - Proves the case is solvable and the graders are wired correctly, so a 0% pass rate is never misread as an incapable engine.
+
+---
+
+## Minted — holes found by the loop
+
+Cases the doc does not list, covering behavior it already implies. Minted under the rule
+in `CLAUDE.md` ("A hole in the cases is the next slice"). IDs are sub-numbered by subject
+first (the case whose claim they extend) and by the slice in progress second. The
+DE-19.1–19.8 block predates that rule and keeps its provenance numbers. These are frozen
+once green like any other case, and are pending Ethan's ratification into the doc.
+
+- **DE-10.1** Selection filtering: `query --attr k=v` returns only items carrying that
+  pair, `--exclude k=v` drops items carrying it, and repeated flags compose.
+  - Found at DE-10. The grammar line and the `selection` search strategy are both
+    ratified in the doc, and DE-5/DE-4 force both flags into `--help` and into the
+    recognized-options list — but nothing graded what they *do*. It is the doc's only
+    search strategy for v0.3.1.
+- **DE-19.1** `introduce --graph <ns>` against an existing graph returns the *instance*
+  introduction, naming what the graph is for and the convention it keeps.
+  - Found by `/code-review` at the DE-17 → DE-19 boundary. The engine ignored `--graph`
+    and answered "There is no Cog Graph here yet" over a graph that was present.
+- **DE-19.2** Every invocation answers on a stream: bare `cog-graphs`, `cog-graphs
+  --help`, and an unknown command each produce output rather than silence.
+  - Same review. All three exited 1 with empty stdout *and* empty stderr, which is the
+    first thing RU-3's zero-priming agent meets.
+- **DE-19.3** *(amended 2026-09-09 by Ethan's resolution — sweep now derived from the
+  CLI rather than a literal, so it retires itself as commands land; see DISPUTES.md)* A
+  command that exists in the grammar but is not yet implemented fails with
+  an explicit `not_implemented` error carrying a `next_step`.
+  - Same review. `import` and `convention` are graded by DE-5 as deliverables and
+    answered with nothing at all.
+- **DE-19.4** A namespace must be a single non-empty path segment; `../escape` and
+  whitespace-only names are refused.
+  - Same review. `namespace: ../escaped` wrote outside the target directory and reported
+    success — the failure the temp-directory guard exists to prevent.
+- **DE-19.5** `initialize` refuses when either face of the artifact already exists, not
+  just the `.sqlite`.
+  - Same review. A pre-existing `notes.md` was destroyed, exit 0, by a graph named
+    `notes`.
+- **DE-19.6** A flag given without a value errors rather than silently falling back to a
+  default.
+  - Same review. `--dir` with no value silently used the working directory, which is the
+    one flag whose entire purpose is controlling where the User's artifact lands.
+- **DE-19.7** The sidecar cannot be made to misrepresent the artifact: an entity name or
+  value containing Markdown structure does not forge a heading or an attribute.
+  - Same review. A value containing a newline and `- **status**: shipped` rendered as a
+    real attribute in the inspectable face.
+- **DE-19.8** `--pretty` produces a human-readable form distinct from the default JSON.
+  - Same review. Accepted everywhere, named in every error's "It accepts:" list, and
+    inert. IN-9 asserts this across every command later; this pins that it does anything
+    at all.
+
+Minted after the IN-9/10/11 sweep, by a second `/code-review` pass. These are
+sub-numbered off the case whose claim they extend rather than off the slice in progress —
+a deviation from the mint-by-slice rule, taken because an ID that says *where to look* is
+worth more than one that says when it was found. Flagged for Ethan to ratify or reverse.
+
+- **DE-7.1** `--dir` does not invent a directory tree, and says when it makes one.
+  - `--dir ./no/such/dir` created all three levels at exit 0 with no warning. Also closes
+    DE-7's own blind spot: a path that does not exist cannot be realpath'd, so where the
+    temp root is a symlink (macOS) the guard did not fire.
+- **DE-19.6.1** Every value-taking flag reaches the missing-value rule.
+  - DE-19.6's sweep runs in an empty directory, where every row fails on something earlier
+    — `no_graph_here`, `missing_option`, `not_implemented` — and never on
+    `missing_value`. It passed against the pre-fix engine. This is the sweep it meant to
+    be; DE-19.6 stays as it is.
+- **DE-19.7.1** The pretty form cannot forge structure, and the namespace is not exempt.
+  - DE-19.7 hardened the sidecar; DE-19.8 then added a second rendered face with no guard,
+    so a value's newlines became payload lines. And `inline()` covered every
+    interpolation except the namespace, which the validator permitted a control character
+    in.
+- **DE-19.8.1** A global flag is never mistaken for a command.
+  - `cog-graphs --pretty` answered "'--pretty' is not a cog-graphs command" — while the
+    overview's own output line advertises exactly that flag.
+- **DE-19.8.2** The pretty form is unambiguous, not merely readable.
+  - An empty object rendered as a dangling label, and array items had no delimiter, so an
+    attribute-less item was indistinguishable from an item boundary.
+- **IN-4.1** An unwritable sidecar does not break the command.
+  - IN-4 put regeneration on the read path with an unguarded write, so a read-only sidecar
+    killed `query` with an uncaught EPERM outside the exit alphabet — punishing the User
+    who took the file's own "do not edit" banner seriously.
+
+Minted while opening DE-20. Sub-numbered off DE-20 under both rules at once — they were
+found there and they extend its claim — so they do not bear on the open numbering
+question either way.
+
+- **DE-20.1** A record that names no entity is rejected, not ingested under an empty name.
+  - The bulk loop read `typeof item.entity === "string" ? item.entity : ""` and inserted
+    the result. A record with no `entity:` key became a row named "" that no query can
+    name and no modify-item can reach — and the second such record collided with the
+    first, so the report blamed `entity_exists` on a name the Operator never wrote. A
+    non-string entity (`entity: 2001`, a game YAML read as a number) gets its own code,
+    `invalid_entity`, because the fix is quoting rather than naming.
+- **DE-20.2** A record colliding with an earlier record in the *same file* is rejected on
+  the same terms as one colliding with the artifact.
+  - Reading the graph's names once and comparing against that snapshot is the obvious
+    implementation and it is wrong: the snapshot does not know about the rows this same
+    invocation just inserted. Green on arrival, so liveness was established by probe —
+    deleting `taken.add(entity)` reds it. The probe also earned the case its exit-code
+    assertion: without it, the duplicate reached SQLite, the UNIQUE constraint killed the
+    process, and the artifact was left holding exactly the rows the case asked for. A
+    count that is right because the program died before it could be wrong is not a claim.
+- **DE-20.3** A source whose every record is rejected is still partial-with-report, with a
+  count of zero; "total failure" means the import itself failed.
+  - DE-20's sub-bullet asks for an exit distinct from total failure, which invites a
+    fourth outcome for a batch where nothing landed. Rejected: the alphabet has no code
+    for "nothing ingested", and inventing one gives an agent a branch for an outcome
+    `ingested: 0` already states exactly. Total failure is read as a missing source
+    (exit 2) or an unparseable one (exit 1) — already distinct, and distinct in kind,
+    since nothing was offered and there is nothing to report per record. The case pins
+    the reading so the next reader finds a decision rather than a silence.
+- **IN-10.1** The interface sweep reaches the fourth class in the exit alphabet, and
+  `import` has a success row at all.
+  - Found opening DE-20. The sweep's own comment claims "at least one per class the exit
+    alphabet names", and EXIT.PARTIAL was unreachable from its table — there was no code
+    that could produce it before DE-20, and no row appeared when there was. `import` also
+    had no success row: the one command whose answer can be neither success nor failure,
+    and therefore the one most likely to grow private conventions, was swept only through
+    its `--help`. Added as insertions to a frozen file (two rows, two expected-code
+    entries, and a second `import` statement rather than an edit to the first, since an
+    edited line is a removed line). Sub-numbered off IN-10 under the subject-based rule.
+- **RU-5.1** What the User tells the Assistant about an item reaches the graph with its
+  meaning intact, including what is new when they update it. *(AI with rubric.)*
+  - Found while drafting the rubric layer (2026-09-10) and minted by Ethan 2026-09-11.
+    DE-23 guards fidelity at the CLI, where strings round-trip, and RU-5 asks whether the
+    convention describes the stored data. Nothing asked whether the stored data
+    describes what the User *said*. In the Walking Skeleton run of 2026-09-09T20-59, the
+    fresh thread heard "I finally finished Portal 2" and "I gave up on Hades for good",
+    decided nothing needed changing, and every gate passed. Grounded in the doc's
+    source-fidelity and Just-in-Time Intelligence principles. Rubric text is in
+    `testing/rubrics/DRAFTS.md`. Sub-numbered off RU-5 (the data the Assistant stores)
+    under the subject-based rule.
+- **DE-5.1** A flag that takes a file documents that file in `--help` (under `files`), as a
+  sample the command accepts verbatim: `initialize --profile` and `import --from`.
+  - Found 2026-09-11 while ratifying the `items.yml` shape. The shape was sound, and it is
+    exactly what `query` returns, but no surface showed it: not `import --help`, not the
+    primer, not the overview. An agent could learn it only by guessing, and RU-6's flow
+    runs through that file. It is asserted by round trip, so help cannot drift from the
+    parser, and it requires every imported record to keep its attributes, because a flat
+    sample ingests its entities cleanly and silently drops the data. Numbered by subject
+    (DE-5 is the `--help` deliverable).

@@ -1,4 +1,4 @@
-// Offline re-verification of the SDK behavioral claims in DESIGN.md (E1–E4).
+// Offline re-verification of the SDK behavioral claims in testing/harness/IMPLEMENTATION.md (E1–E4).
 //
 // Every claim here is an assumption the runtime would break on silently if a
 // future SDK changed it. They are checked against a captured transcript.json,
@@ -151,7 +151,7 @@ function checkE3(msgs: AnyMsg[]): ClaimResult {
       id: "E3",
       claim,
       verdict: "FAIL",
-      detail: `${hits} session_state_changed message(s) present — the documented fallback turn-over signal is now live; revisit DESIGN.md E1/E3`,
+      detail: `${hits} session_state_changed message(s) present — the documented fallback turn-over signal is now live; revisit testing/harness/IMPLEMENTATION.md E1/E3`,
     };
   }
   return { id: "E3", claim, verdict: "PASS", detail: "none present, as documented" };
@@ -219,7 +219,7 @@ const arg = process.argv[2];
 const file = arg ? path.resolve(arg) : await newestTranscript();
 const msgs = await loadMessages(file);
 
-console.log(`\n=== DESIGN.md claim verification ===`);
+console.log(`\n=== testing/harness/IMPLEMENTATION.md claim verification ===`);
 console.log(`transcript: ${file}`);
 console.log(`messages:   ${msgs.length}\n`);
 
@@ -240,7 +240,7 @@ if (inconclusive.length && !failed.length) {
   console.log("(inconclusive = this transcript could not exercise the claim, not that it is false)");
 }
 console.log(
-  "\nE5 (auth) is verified by `bun run eval:smoke` completing at all.\nU1 (plugins/skills under settingSources: []) needs the Cog-Graphs plugin — see DESIGN.md.",
+  "\nE5 (auth) is verified by `bun run eval:smoke` completing at all.\nU1 (plugins/skills under settingSources: []) needs the Cog-Graphs plugin — see testing/harness/IMPLEMENTATION.md.",
 );
 
 process.exit(failed.length ? 1 : 0);

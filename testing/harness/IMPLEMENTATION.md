@@ -1,4 +1,4 @@
-# Eval Harness Runtime — Design
+# Eval Harness Runtime — Implementation
 
 > **Status**: adapted 2026-08-28 for Cog-Graphs from the DKB Library harness
 > (v1 design authored 2026-07-17 by Fable with Ethan). Ported near-verbatim; the
@@ -198,12 +198,82 @@ transcript — no API spend, no network. To refresh the transcript first (~$0.02
 | **G3** | `maxTurnsPerMessage` maps to SDK `maxTurns`, which is a **global brake across the whole streaming session**, not per-message. | Budget it for the whole scenario, not one turn. Symptom of getting it wrong: a late turn ends with `result.subtype === 'error_max_turns'`, which the runtime records as a failing gate and halts on. |
 | **G4** | `haltOnGateFailure` defaults to **false** (all turns still run); a non-success `result` subtype always halts regardless. | Set it `true` when later turns are meaningless after an early failure. |
 | **G5** | `Read` tool failures return a plain **string** `tool_use_result`, not an object. | `flattenContent` in `transcript.ts` handles both shapes; don't assume object access in gates reading `toolResults[].content`. |
+| **G6** | **Do not pipe an eval's output through `tail`/`head`.** The scenario finishes and the process exits, but subprocesses the in-loop agent started inherit stdout, so the pipe never reaches EOF and the shell appears to hang forever. | Redirect to a file (`bun run eval:skeleton > run.log 2>&1`) and read that, or read `summary.json` in the artifacts dir — it is written before the process exits and carries every gate. Observed 2026-09-09: the first Walking Skeleton run completed all 6 turns and wrote final artifacts at 13:42, and the piped shell was still waiting at 13:55. *Probe:* run any Bash-using scenario piped to `tail`; the report never appears, while the same run redirected to a file returns immediately. |
+| **G7** | A turn marked `freshThread` opens a **new session** over the same sandbox. `maxTurnsPerMessage` is a per-session brake (G3), so it resets at that boundary. | Budget it per segment, not per run. The Walking Skeleton's fresh thread is the only place this currently applies. |
+
+### Checkpoints and IN-5
+
+`checkpoint.ts` is deliberately free of the SDK and of `types.ts`: `capture()` reads every
+graph in a directory into a plain object and `regressions()` compares consecutive
+checkpoints. IN-5 runs in the **free** layer against a scripted lifecycle
+(`testing/tests/checkpoints.test.ts`) and every paid scenario gets the same check between
+turns from the same two functions. An invariant checked two different ways is two
+invariants.
+
+**Permission to change an entity is declared in advance and scoped to one step.**
+`TurnDef.mayChange` names entities; the function form is handed the checkpoint taken
+*before* the turn, because an agentic scenario's entities are named by the agent and the
+scenario cannot know whether it wrote "Portal 2" or "Portal 2 (2011)". Resolved late,
+declared in advance. A `mayChange` that returns every name has turned the invariant off for
+that step, and that is the thing to look for when reviewing one.
+*Probe:* delete `taken.add`-style bookkeeping — no; the real probe is
+`bun test testing/tests/checkpoints.test.ts` with `regressions()` stubbed to return `[]`,
+which reds 4 of its 6 cases (run 2026-09-09).
+
+**The IN-5 gate's label carries its counts.** A scenario that never made a graph satisfies
+IN-5 perfectly; a gate reporting a bare pass would read identically to one that checked two
+hundred items. The smoke eval passes it vacuously and says so.
+
+### Where the sandbox lives, and why the path is part of the scenario
+
+Sandboxes are created in `~/cog-graph-workspaces/<scenario>-<random>` — not under the
+platform temp root, not inside the repo, and with no "temp", "scratch", "test" or "eval" in
+the path. That is not fastidiousness; it cost two paid runs to learn.
+
+Under the temp root, DE-7 makes the engine warn that the graph will vanish, so **every**
+scenario tripped a warning that existed only because of the harness. On 2026-09-09T20-54 the
+agent handled it exactly right — stopped, explained that Windows cleans that directory
+without telling anyone, and asked the User whether to move the graph first — and so did not
+run the query the turn was about. A gate went red for the agent behaving well.
+
+Moving to `testing/.scratch/` removed the engine's warning and not the problem. On
+2026-09-09T20-56 the agent read the path itself, decided ".scratch" inside a git worktree
+looked disposable, and declined to create anything for three turns while it asked where the
+data should really live. No engine change prevents that, and none should: an agent reasoning
+about where its User's durable data is going is the system working.
+
+**The finding is about the product, not just the harness.** Location is part of this
+interface's UX, and an agent will spend real turns on it when the location looks wrong. In
+the neutral workspace the same scenario passed at 21 agent turns / 15 tool calls / 186,382
+tokens, against 24 / 18 / 245,997 under the temp root — roughly a sixth of the budget was
+going on the argument.
+*Probe:* point `sandbox` back at `tmpdir()` and run `bun run eval:skeleton`; expect the
+turn-2 gates to go red with the agent asking about the directory rather than querying.
+
+Sandboxes are kept rather than deleted — a failed run is only diagnosable from what it left
+behind — so `~/cog-graph-workspaces` accumulates and is the operator's to prune.
+
+### Installing a binary for the in-loop agent
+
+`agent.install` writes files to a temp directory **outside the sandbox** and prepends it to
+the agent's PATH — and to `ctx.exec`'s, so a gate runs the same binary the agent does.
+Outside, because "installed" means a program the agent can name from anywhere without
+knowing where it lives, and because a file in the working directory would show up in the
+listing IN-6 checks for strays.
+
+Entries are written verbatim, with no platform translation: a scenario needing both a POSIX
+shim and a `.cmd` twin lists both. Claude Code's Bash is a POSIX shell even on Windows
+while `ctx.exec` goes through cmd.exe there, so guessing which one the shell resolves is
+how this fails silently, on one platform, in the middle of a paid run.
+*Probe:* install only the POSIX form and run the Walking Skeleton's turn 2 gate on Windows —
+`cog-graphs introduce` returns a non-zero exit and the convention assertion fails for a
+reason that has nothing to do with the convention.
 
 ## File layout
 
 ```
 testing/harness/
-  DESIGN.md          # this file
+  IMPLEMENTATION.md  # this file
   runtime.ts         # runScenario + session driver (ALL SDK imports live here)
   types.ts           # ScenarioDefinition, TurnDef, GateContext, ScenarioResult, Stats
   transcript.ts      # message capture, parsing into per-turn views, md rendering

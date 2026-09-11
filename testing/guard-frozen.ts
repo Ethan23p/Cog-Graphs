@@ -31,7 +31,15 @@ const FROZEN_PATHS = ["testing/tests/*.test.ts", "testing/tests/contract.ts", "t
 
 function git(args: string[]): string {
   const r = spawnSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" });
-  if (r.status !== 0 && r.stderr) throw new Error(`git ${args.join(" ")}: ${r.stderr.trim()}`);
+  // Any failure to actually run git has to be loud. The old condition required a
+  // non-zero status *and* non-empty stderr, so a git that never launched (status null)
+  // or exited non-zero silently returned "" — which parses as an empty diff and reports
+  // a clean freeze check. A guard that passes when it could not look is worse than no
+  // guard, because it is trusted.
+  if (r.error) throw new Error(`git ${args.join(" ")}: ${r.error.message}`);
+  if (r.status !== 0) {
+    throw new Error(`git ${args.join(" ")} exited ${r.status}: ${(r.stderr ?? "").trim()}`);
+  }
   return r.stdout ?? "";
 }
 
@@ -53,11 +61,21 @@ const violations: Violation[] = [];
 const touched = new Set<string>();
 let file = "";
 let isNewFile = false;
+// Removal lines are only counted inside a hunk. Discriminating on position rather than
+// on content is what lets the parser tell the diff's own `--- a/path` header from a
+// deleted line of source that happens to start with `--` — `--pretty`, say, which
+// renders as `---pretty` and used to be skipped as if it were a header.
+let inHunk = false;
 
 for (const line of diff.split("\n")) {
-  if (line.startsWith("+++ ")) {
-    file = line.slice(4).replace(/^b\//, "");
-    if (file !== "/dev/null") touched.add(file);
+  // The `diff --git` line is the only reliable place to learn the path: on a deletion
+  // the `+++` side is `/dev/null`, which is exactly the case the guard most needs to
+  // name. Both paths are always present here, even for adds and deletes.
+  const header = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+  if (header) {
+    file = header[2] === "/dev/null" ? header[1] : header[2];
+    isNewFile = false;
+    inHunk = false;
     continue;
   }
   // A file added in this range has no prior content, so nothing in it can be a removal.
@@ -65,13 +83,26 @@ for (const line of diff.split("\n")) {
     isNewFile = line.slice(4).trim() === "/dev/null";
     continue;
   }
-  if (isNewFile) continue;
-  if (line.startsWith("-") && !line.startsWith("---")) {
+  if (line.startsWith("+++ ")) continue;
+  if (line.startsWith("@@")) {
+    inHunk = true;
+    if (file) touched.add(file);
+    continue;
+  }
+  if (isNewFile || !inHunk) continue;
+  if (line.startsWith("-")) {
     violations.push({ file, line: line.slice(1) });
   }
 }
 
-if (touched.size === 0) {
+// Violations are reported before the nothing-changed shortcut, not after.
+//
+// This ordering is the whole fix for the hole that let a frozen file be deleted
+// outright: a deletion produced no entry in `touched`, so the early exit fired first and
+// the guard announced "no frozen files changed" over a file whose every line had just
+// been removed. Deleting a case was the one edit the enforcement mechanism could not
+// see, which made it the cheapest way to defeat the project's non-negotiable.
+if (violations.length === 0 && touched.size === 0) {
   console.log(`guard: no frozen files changed since ${base}.`);
   process.exit(0);
 }
