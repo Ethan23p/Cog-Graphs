@@ -285,10 +285,12 @@ red is the scenario's own gates.
 
 These are engine work, not eval work. The rubrics guard them once they land.
 
-- **The primer goes generic** (Ethan, 2026-09-11). `INTERFACE_SKILL_PRIMER` in
-  `engine/main.ts` uses a games example and asks the Assistant to establish "namespace,
-  use-pattern, and a description" with the User. Both belong to the implementation, and
-  RU-1 and RU-4 are the cases that will hold the line afterwards.
+- ~~**The primer goes generic**~~ **Done 2026-09-11** (Ethan's call: a targeted fix and
+  no case). The primer's worked example, every `--help` example, and the
+  `invalid_namespace` hint are now domain-neutral (`my-list`, `First item`,
+  `status=open`). The comment above `INTERFACE_SKILL_PRIMER` says why. The primer's
+  "namespace, use-pattern, and a description" line is not about a domain, so it is left to
+  RU-1 and RU-4.
 
 ## Open for Ethan
 

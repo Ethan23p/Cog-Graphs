@@ -113,6 +113,13 @@ const SYSTEM_INTRODUCTION = [
 // initialize and use a Cog Graph directly, and nothing else. It is the whole priming an
 // agent operating the CLI is guaranteed to have, so every command the Walking Skeleton
 // walks appears here in runnable form (DE-2).
+//
+// Its worked example — and every example in HELP below — is deliberately domain-neutral.
+// An Operator copies the example it is shown: in the Walking Skeleton run of
+// 2026-09-09T20-59, when the example here was a games list, the agent's profile reproduced
+// it almost word for word, down to a name the User never gave. That makes the example part
+// of the product's behavior, and it means an eval in the example's domain cannot tell a
+// designed profile from a transcribed one. Keep examples free of any subject matter.
 const INTERFACE_SKILL_PRIMER = [
   "# Operating a Cog Graph directly",
   "",
@@ -128,11 +135,11 @@ const INTERFACE_SKILL_PRIMER = [
   "description in their words — then write it to a one-time-use `.yml` and pass it in:",
   "",
   "  profile:",
-  "    namespace: game-recs",
+  "    namespace: my-list",
   "    use-pattern: manual",
-  "    description: Games Ethan has played and what he thought of them.",
+  "    description: What this graph is for, in the User's words.",
   "  convention: |",
-  "    Every game carries a status and a taste-alignment.",
+  "    Every item carries a status.",
   "",
   "  cog-graphs initialize --profile <profile.yml> [--dir <path>]",
   "",
@@ -202,8 +209,8 @@ const HELP: Record<string, Help> = {
       "--dir": "Directory to create the graph in. Defaults to the working directory.",
     },
     examples: [
-      "cog-graphs initialize --profile ./profile-game-recs.yml",
-      "cog-graphs initialize --profile ./profile-game-recs.yml --dir 'E:/AI Resources'",
+      "cog-graphs initialize --profile ./profile.yml",
+      "cog-graphs initialize --profile ./profile.yml --dir 'D:/Shared Files'",
     ],
     notes: [
       "The artifact belongs to the User. Creating it under a temp directory is warned about, because a graph the User cannot find is a graph they do not have.",
@@ -220,8 +227,8 @@ const HELP: Record<string, Help> = {
       "--exclude": "Drop items carrying this attribute/value pair. Repeatable.",
     },
     examples: [
-      "cog-graphs query --graph game-recs",
-      "cog-graphs query --graph game-recs --attr status=completed --exclude genre=horror",
+      "cog-graphs query --graph my-list",
+      "cog-graphs query --graph my-list --attr status=open --exclude priority=low",
     ],
     notes: [
       "Each attribute is a handhold: narrow repeated queries traverse the graph better than one broad one.",
@@ -236,7 +243,7 @@ const HELP: Record<string, Help> = {
       "--attr": "An attribute/value pair on the entity. Repeatable.",
     },
     examples: [
-      "cog-graphs add-item --graph game-recs --entity 'Grand Theft Auto V' --attr status=completed",
+      "cog-graphs add-item --graph my-list --entity 'First item' --attr status=open",
     ],
     notes: ["An entity that already exists is refused; use modify-item to change it."],
   },
@@ -245,7 +252,7 @@ const HELP: Record<string, Help> = {
     usage: "cog-graphs import --from <items.yml> [--graph <namespace>]",
     required: { "--from": "Path to a .yml holding the items to ingest." },
     optional: { "--graph": "Which graph to ingest into, when the directory holds more than one." },
-    examples: ["cog-graphs import --graph game-recs --from ./games.yml"],
+    examples: ["cog-graphs import --graph my-list --from ./items.yml"],
     notes: [
       "Partial with report: valid records are committed and invalid ones are rejected, never all-or-nothing. The exit code is distinct from both clean success and total failure, and the report arrives on stderr carrying 'ingested' and a 'rejected' list that names each offender by 'entity' and by 'index' — its zero-based position in the source's items list.",
       "A record is rejected on the same terms add-item would refuse it: an entity the graph already holds, or one already named earlier in the same file. Fix the named records and re-run import on a .yml holding only those.",
@@ -261,7 +268,7 @@ const HELP: Record<string, Help> = {
       "--attr": "An attribute/value pair to set. Repeatable.",
     },
     examples: [
-      "cog-graphs modify-item --graph game-recs --entity 'Grand Theft Auto V' --attr taste-alignment=high",
+      "cog-graphs modify-item --graph my-list --entity 'First item' --attr status=done",
     ],
     notes: ["An entity that does not exist is refused; use add-item to create it."],
   },
@@ -270,7 +277,7 @@ const HELP: Record<string, Help> = {
     usage: "cog-graphs remove-item --entity <name> [--graph <namespace>]",
     required: { "--entity": "The entity to remove. Must already exist." },
     optional: { "--graph": "Which graph to remove from, when the directory holds more than one." },
-    examples: ["cog-graphs remove-item --graph game-recs --entity 'Grand Theft Auto V'"],
+    examples: ["cog-graphs remove-item --graph my-list --entity 'First item'"],
   },
   convention: {
     summary:
@@ -282,8 +289,8 @@ const HELP: Record<string, Help> = {
       "--append": "Add an expectation to the convention.",
     },
     examples: [
-      "cog-graphs convention --graph game-recs",
-      "cog-graphs convention --graph game-recs --append 'every game carries a status of played | playing | abandoned'",
+      "cog-graphs convention --graph my-list",
+      "cog-graphs convention --graph my-list --append 'every item carries a status of open | done'",
     ],
     notes: [
       "The convention lives in the artifact, not the engine. It is yours to keep honest: it should describe the data you actually store.",
@@ -873,7 +880,7 @@ if (command === "initialize") {
       EXIT.USAGE,
       "invalid_namespace",
       `'${profile.namespace}' cannot be a namespace: it must be a single name, not a path.`,
-      `The namespace becomes the filename of the graph, so it may not contain '/' or '\\\\' or be empty. Pick a plain name like 'game-recs' in ${resolved}, and use --dir to choose where the graph lands.`,
+      `The namespace becomes the filename of the graph, so it may not contain '/' or '\\\\' or be empty. Pick a plain name like 'my-list' in ${resolved}, and use --dir to choose where the graph lands.`,
     );
   }
 
