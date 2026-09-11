@@ -507,6 +507,242 @@ convention: |
   ],
 };
 
+// ---------------------------------------------------------------------------------------
+// Zero priming (RU-3). The assistant is told only that the program is on its PATH, and the
+// User's goal is in a domain no `--help` example uses. The passing reference is the shape
+// the live trials of 2026-09-11 took; the failing one is an assistant that reads the help,
+// does not believe it can learn the program, and keeps the User's data in a text file.
+
+const Z1 =
+  "I look after a lot of houseplants and I keep losing track of them. I'd like somewhere to keep which room each one is in and when I last watered it. Can you set that up for me here?";
+const Z2 =
+  "Great. The monstera is in the living room and I watered it last Sunday. The snake plant is in the bedroom and I haven't watered it in about two weeks. What have we got?";
+
+const PLANTS_PROFILE = `profile:
+  namespace: houseplants
+  description: The User's houseplants, where each one lives and when it was last watered.
+convention: |
+  Each item is one plant, named by what the User calls it.
+  room: where in the home it lives.
+  last-watered: the date the User last watered it.
+`;
+
+const ZERO_PRIMING: Reference = {
+  id: "zero-priming",
+  scenario: "zero-priming",
+  agent: AGENT,
+  turns: [
+    {
+      user: Z1,
+      steps: [
+        { run: "cog-graphs --help" },
+        { run: "cog-graphs introduce --interface-skill" },
+        { write: "houseplants.profile.yml", content: PLANTS_PROFILE },
+        { run: "cog-graphs initialize --profile houseplants.profile.yml --pretty" },
+        {
+          say:
+            "Done — there's a houseplants list in this folder now. For each plant I'll keep which room it's in and " +
+            "when you last watered it. Tell me about them whenever you like.",
+        },
+      ],
+    },
+    {
+      user: Z2,
+      steps: [
+        {
+          run: `cog-graphs add-item --graph houseplants --entity Monstera --attr "room=Living room" --attr last-watered=2026-09-06 --pretty`,
+        },
+        {
+          run: `cog-graphs add-item --graph houseplants --entity "Snake plant" --attr room=Bedroom --attr last-watered=2026-08-28 --pretty`,
+        },
+        { run: "cog-graphs query --graph houseplants --pretty" },
+        {
+          say:
+            "Two plants so far:\n\n" +
+            "- **Monstera**: living room, watered 6 September.\n" +
+            "- **Snake plant**: bedroom, watered 28 August.\n\n" +
+            "The snake plant is the thirsty one, at about two weeks.",
+        },
+      ],
+    },
+  ],
+};
+
+// The failing variant still ends with a graph, and that is the point: it gets there by being
+// told how, which is the anti-pattern ("needing the User to explain it") rather than the
+// absence of a result. A variant that simply never created anything would also fail RU-3, but
+// it would be a weaker test of the judge — and it renders as a run with no graph at all,
+// which the free reference test rejects as a broken reference.
+const RU3_ASKED_THE_USER: Reference = {
+  id: "ru-3-asked-the-user",
+  scenario: "zero-priming",
+  agent: AGENT,
+  turns: [
+    {
+      user: Z1,
+      steps: [
+        { run: "cog-graphs --help" },
+        { write: "houseplants.txt", content: "Houseplants\n===========\n" },
+        {
+          say:
+            "There's a program here called cog-graphs that looks like it might be for this, but I can't tell how " +
+            "it's meant to be driven — I'd be guessing at the arguments. Do you know the command to create one, or " +
+            "where its documentation lives? In the meantime I've started a houseplants.txt and I'll keep the list " +
+            "in there.",
+        },
+      ],
+    },
+    {
+      user:
+        "I asked a friend. They said to write a little YAML file with a namespace, a description and a convention in it, and then run `cog-graphs initialize --profile <that file>`. Does that help?",
+      steps: [
+        { write: "houseplants.profile.yml", content: PLANTS_PROFILE },
+        { run: "cog-graphs initialize --profile houseplants.profile.yml --pretty" },
+        {
+          say:
+            "That did it, thank you — that was the part I couldn't work out. There's a houseplants list in this " +
+            "folder now. If you find out how to put plants into it, tell me and I'll do that too.",
+        },
+      ],
+    },
+    {
+      user: Z2,
+      steps: [
+        {
+          run: `cog-graphs add-item --graph houseplants --entity Monstera --attr "room=Living room" --attr last-watered=2026-09-06 --pretty`,
+        },
+        {
+          run: `cog-graphs add-item --graph houseplants --entity "Snake plant" --attr room=Bedroom --attr last-watered=2026-08-28 --pretty`,
+        },
+        { say: "Both are in — I guessed at that one from the shape of the first command, and it seems to have worked." },
+      ],
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------------------
+// Ingestion (RU-6). A dozen books, pasted as the User keeps them. The passing reference
+// commits one, shows how it came out, and only then bulk-ingests the rest; the failing one
+// goes item by item through the whole pile without ever checking its reading.
+
+const BOOKS_PASTE = `The Left Hand of Darkness - Le Guin, 5/5, still thinking about it
+Piranesi (Susanna Clarke) 5/5
+Project Hail Mary, Weir - fun, 4/5
+The Dispossessed - Le Guin
+Klara and the Sun, Ishiguro, 3/5, didn't land for me
+Blindsight - Watts, 4/5, bleak`;
+
+const I1 =
+  "I keep a running list of the books I've read in a note on my phone, and it's getting unwieldy. Could you put it somewhere I can actually search, right here in this folder? Here's the lot:\n\n" +
+  BOOKS_PASTE;
+const I2 = "Yes, that's exactly right.";
+
+const BOOKS_PROFILE = `profile:
+  namespace: books-read
+  description: Books the User has finished, with their rating and anything they said about each.
+convention: |
+  Each item is one book, named by its title.
+  author: who wrote it, as the User wrote it.
+  rating: the User's rating out of 5, where they gave one.
+  note: what the User said about it, in their own words.
+`;
+
+/** The five books the passing reference ingests in bulk, after the first one is confirmed. */
+const BOOKS_YML = `items:
+  - entity: Piranesi
+    attributes:
+      author: Susanna Clarke
+      rating: 5/5
+  - entity: Project Hail Mary
+    attributes:
+      author: Weir
+      rating: 4/5
+      note: fun
+  - entity: The Dispossessed
+    attributes:
+      author: Le Guin
+  - entity: Klara and the Sun
+    attributes:
+      author: Ishiguro
+      rating: 3/5
+      note: didn't land for me
+  - entity: Blindsight
+    attributes:
+      author: Watts
+      rating: 4/5
+      note: bleak
+`;
+
+const INGESTION: Reference = {
+  id: "ingestion",
+  scenario: "ingestion",
+  agent: AGENT,
+  turns: [
+    {
+      user: I1,
+      steps: [
+        { run: "cog-graphs --help" },
+        { run: "cog-graphs import --help" },
+        { write: "books-read.profile.yml", content: BOOKS_PROFILE },
+        { run: "cog-graphs initialize --profile books-read.profile.yml --pretty" },
+        {
+          run: `cog-graphs add-item --graph books-read --entity "The Left Hand of Darkness" --attr "author=Le Guin" --attr rating=5/5 --attr "note=still thinking about it" --pretty`,
+        },
+        { run: "cog-graphs query --graph books-read --pretty" },
+        {
+          say:
+            "I've done the first one so you can check I'm reading your list the way you meant it:\n\n" +
+            "- **The Left Hand of Darkness** — author Le Guin, rating 5/5, note \"still thinking about it\".\n\n" +
+            "So: title, author, your rating where you gave one, and whatever you said about it. If that's right " +
+            "I'll put the other five in in one go.",
+        },
+      ],
+    },
+    {
+      user: I2,
+      steps: [
+        { write: "books.yml", content: BOOKS_YML },
+        { run: "cog-graphs import --graph books-read --from books.yml --pretty" },
+        { run: "cog-graphs query --graph books-read --pretty" },
+        {
+          say:
+            "All six are in. Two of them have no rating or note, because you didn't give one — The Dispossessed " +
+            "has just the author. Ask me for anything by rating or author and I'll pull it out.",
+        },
+      ],
+    },
+  ],
+};
+
+const RU6_ITEM_BY_ITEM: Reference = {
+  id: "ru-6-item-by-item",
+  scenario: "ingestion",
+  agent: AGENT,
+  turns: [
+    {
+      user: I1,
+      steps: [
+        { run: "cog-graphs --help" },
+        { write: "books-read.profile.yml", content: BOOKS_PROFILE },
+        { run: "cog-graphs initialize --profile books-read.profile.yml --pretty" },
+        {
+          run: `cog-graphs add-item --graph books-read --entity "The Left Hand of Darkness" --attr "author=Le Guin" --attr rating=5 --pretty`,
+        },
+        { run: `cog-graphs add-item --graph books-read --entity Piranesi --attr "author=Susanna Clarke" --attr rating=5 --pretty` },
+        { run: `cog-graphs add-item --graph books-read --entity "Project Hail Mary" --attr author=Weir --attr rating=4 --pretty` },
+        { run: `cog-graphs add-item --graph books-read --entity "The Dispossessed" --attr "author=Le Guin" --attr rating=0 --pretty` },
+        { run: `cog-graphs add-item --graph books-read --entity "Klara and the Sun" --attr author=Ishiguro --attr rating=3 --pretty` },
+        { run: `cog-graphs add-item --graph books-read --entity Blindsight --attr author=Watts --attr rating=4 --pretty` },
+        {
+          say:
+            "All six are in, one at a time. I gave The Dispossessed a rating of 0 since you didn't give it one, and " +
+            "I've stored the ratings as plain numbers out of 5.",
+        },
+      ],
+    },
+  ],
+};
+
 export const REFERENCES: Reference[] = [
   PASSING,
   RU1_INVENTED,
@@ -515,6 +751,10 @@ export const REFERENCES: Reference[] = [
   RU5_DECORATION,
   KEPT_QUOTES,
   KEPT_QUOTES_SUMMARIZED,
+  ZERO_PRIMING,
+  RU3_ASKED_THE_USER,
+  INGESTION,
+  RU6_ITEM_BY_ITEM,
 ];
 
 export interface Label {
@@ -534,4 +774,8 @@ export const LABELS: Label[] = [
   { rubric: "RU-5", reference: "ru-5-convention-ignored", expected: "fail" },
   { rubric: "RU-5.1", reference: "kept-quotes", expected: "pass" },
   { rubric: "RU-5.1", reference: "kept-quotes-summarized", expected: "fail" },
+  { rubric: "RU-3", reference: "zero-priming", expected: "pass" },
+  { rubric: "RU-3", reference: "ru-3-asked-the-user", expected: "fail" },
+  { rubric: "RU-6", reference: "ingestion", expected: "pass" },
+  { rubric: "RU-6", reference: "ru-6-item-by-item", expected: "fail" },
 ];

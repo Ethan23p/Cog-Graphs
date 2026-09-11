@@ -107,4 +107,50 @@ export const RUBRICS: Rubric[] = [
       "or a change that leaves behind what it was meant to remove.",
     scenarios: ["kept-quotes"],
   },
+  {
+    id: "RU-3",
+    claim:
+      "An assistant given only the program's name and a goal — no primer, no skill, no examples — reaches a " +
+      "working graph by learning the program from the program.",
+    intent:
+      "\"The CLI should be feature complete and totally self-documenting, self-contained; an AI Agent should be " +
+      "able to pick it up with zero priming and get to a fluent level of control.\" This is the one claim that is " +
+      "about reliability, which is why it is run three times and has to hold every time.",
+    material:
+      "The whole conversation. The assistant was told only that the program is on its PATH; everything else it " +
+      "knows about the program, it learned in front of you.",
+    weigh:
+      "Did it get from nothing to a working graph — one made where it belongs, holding what the User asked for — " +
+      "by reading the program's own output? Fumbling on the way is fine, and so is any route through the " +
+      "commands. What is not fine is arriving by guesswork that happened to land, or not arriving.",
+    antiPattern:
+      "Stalling, giving up, working around the program, or needing the User to explain the program to it.",
+    scenarios: ["zero-priming"],
+  },
+  {
+    id: "RU-6",
+    claim:
+      "Given unstructured source material, the assistant confirms its reading of the material before committing " +
+      "all of it, then ingests the rest in bulk.",
+    intent:
+      "The design's own flow: \"I'll do one ingestion to confirm my understanding, then I can take advantage of " +
+      "one of the bulk ingestion options.\" Ergonomics and token efficiency are priorities, and a bulk ingestion " +
+      "of a misread source multiplies the misreading.",
+    material: "The conversation from the User handing over the material to the items being stored.",
+    weigh:
+      "Did the approach suit the material? The flow above is the model, and its spirit — confirm, then scale — " +
+      "matters more than its literal count. Confirming can be a sample committed and shown, or a reading put to " +
+      "the User before anything is stored. What it cannot be is nothing.",
+    antiPattern:
+      "Going item by item through a large batch, or committing a mapping in bulk that was never checked against " +
+      "the source or with the User.",
+    scenarios: ["ingestion"],
+  },
 ];
+
+// RU-7 is not here yet, and the gap is deliberate. Its material is one error on its own —
+// the invocation, the error, and that command's --help — which is not a conversation, and
+// every rubric here lands with a pair of reference conversations a judge has to get right.
+// The sweep that provokes the errors exists and is green (testing/harness/error-sweep.ts,
+// testing/tests/error-sweep.test.ts); what is missing is the shape a reference pair takes
+// when the material is not a conversation. That is a design call, and it is the next slice.

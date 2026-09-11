@@ -319,9 +319,29 @@ judges every labelled pair and fails unless each verdict matches its label.
 4. ~~**RU-5.1's live scenario**, kept quotes, and a run judged against it.~~ Done
    2026-09-11 (`bun run eval:quotes`): 15 gates passed, including the name being gone from
    the graph and from the `.md` face, and RU-5.1 passes on the run ($0.20 + $0.06).
-5. **RU-3**: the zero-priming scenario, three trials.
-6. **RU-6**: the ingestion scenario.
-7. **RU-7**: the direct sweep. One judge call per error code, and no agent run.
+5. ~~**RU-3**: the zero-priming scenario, three trials.~~ Done 2026-09-11
+   (`bun run eval:zero-priming`): pass^3, $0.23, and RU-3 passes on a trial as judged.
+   The first attempt was 1/3, on a gate of mine rather than the claim — two agents added
+   both plants and answered from `add-item`'s own output instead of running `query`. The
+   claim is that the agent arrives, not which command it arrives by, so the gate went and
+   the reason is in the scenario file.
+6. ~~**RU-6**: the ingestion scenario.~~ Scenario done 2026-09-11
+   (`bun run eval:ingestion`): every gate passes. **The rubric does not**: the judge failed
+   the live run, because the assistant went straight from the pasted list to a twelve-item
+   `import` and only showed its reading afterwards, when everything was already committed.
+   That is the rubric doing its job — the implementation owes this one, and nothing in the
+   eval layer should be softened to meet it.
+   The first run also failed for a reason worth keeping: asked to put the list "somewhere I
+   can actually search", the agent judged the sandbox to be a temporary workspace and made
+   the graph under `~/cog-graphs/books-read` instead. The scenario now says "right here in
+   this folder", because where the graph goes is DE-7's subject, not RU-6's.
+7. **RU-7**: the sweep landed; the rubric has not. `testing/harness/error-sweep.ts` provokes
+   every error code the engine can raise — 20 of them, each with its invocation, the whole
+   error and that command's `--help` — and `testing/tests/error-sweep.test.ts` asserts the
+   coverage for free, against the codes read out of the engine's own source, so a new code
+   cannot ship ungraded. What is missing is the judging: every rubric here lands with a pair
+   of reference *conversations*, and RU-7's material is one error on its own. See "Open for
+   Ethan".
 
 ## Implementation follow-ups these drafts surfaced
 
@@ -349,4 +369,15 @@ These are engine work, not eval work. The rubrics guard them once they land.
 
 ## Open for Ethan
 
-Nothing, as of 2026-09-11.
+- **What a reference pair is, when the material is not a conversation** (RU-7). Every rubric
+  is calibrated against one conversation that plainly meets its claim and one that plainly
+  breaks it, and the free test enforces that. RU-7 is judged over a single provoked error —
+  the invocation, the error, the `--help` — so a pair for it would be two errors, one with a
+  `next_step` worth reading and one without. That needs either a second reference shape
+  beside `Reference`, or the judge for RU-7 being calibrated some other way. My inclination
+  is the second shape, since the sweep already produces exactly that material; I did not
+  build it unilaterally because the pair rule is what keeps a judge honest, and changing its
+  shape is the sort of call that should be yours. The sweep and its free coverage test are
+  landed and green in the meantime.
+- **RU-6 fails on the live run** (see step 6 of the order). Not a question so much as a
+  notice: the first rubric to name something the implementation owes.

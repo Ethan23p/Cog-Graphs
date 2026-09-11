@@ -118,6 +118,8 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - **RU-1** The Assistant establishes the profile configuration *conversationally* with the User rather than inventing it.
 - **RU-2** The cold thread orients itself and reaches the right items using only the CWD and the tooling.
 - **RU-3** Zero-priming fluency: an agent given only the binary name and a goal — no skill, no primer — reaches a working graph. **Scored pass^k, k=3.**
+  - Scenario: `testing/evals/eval_zero_priming.ts` (`bun run eval:zero-priming`), three
+    trials over houseplants — a domain no `--help` example uses. Passed 3/3 on 2026-09-11.
   - This is the one case whose whole claim is reliability, so pass^k. The other rubric cases stay at pass@1.
 - **RU-4** The Assistant does not over-explain the mechanics to the User.
   - Anchored: the judge is shown the user turns and asked whether any assistant message would require the User to learn a system abstraction in order to follow it.

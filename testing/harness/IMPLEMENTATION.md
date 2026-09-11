@@ -405,6 +405,31 @@ rather than drifting. *Probe:* change an `add-item` in `testing/rubrics/referenc
 entity that already exists → "every reference builds against the real engine" in
 `testing/tests/references.test.ts` goes red (reasoned: the builder throws on an unexpected exit).
 
+### The error sweep (S4)
+
+`error-sweep.ts` provokes every error code the engine can raise, once each, by direct
+invocation — no agent, because RU-7's claim is about the text of an error and putting an
+agent in front of it would grade the agent. Each entry carries what an Operator meeting that
+error would have: the command, the whole of stderr, and that command's `--help`.
+
+- **Coverage is derived, not remembered.** `testing/tests/error-sweep.test.ts` reads the codes
+  out of `engine/main.ts` (every `fail(EXIT.…, "code")`) and requires an entry for each, so a
+  code added to the engine cannot ship ungraded. A code with no provocation is allowed only
+  where `unreachableCodes()` says so and says why — today that is `not_implemented`, which
+  nothing can provoke while every documented command is built, asked of the CLI rather than
+  remembered as a literal (the DE-19.3 precedent). *Probe:* delete any provocation from
+  `PROVOCATIONS` → "every error code the engine can raise is provoked once, or declared
+  unreachable" goes red. Break the regex that reads the engine → "the engine's codes are found
+  in its source at all" goes red, which is the guard against the whole file going vacuous.
+- **Each entry is checked to have actually provoked its code**, with a non-zero exit and a
+  non-empty `next_step`. That is what caught three provocations that did not fail at all when
+  the sweep was first run (2026-09-11): a namespace with a space in it is legal, one missing
+  directory level is created for you with a warning rather than refused (DE-7.1), and a
+  read-only sidecar is a warning and not a failure.
+- **Warnings are out of scope, for now.** `sidecar_unwritable`, `created_directory` and
+  `temp_directory` carry the same `code`/`message`/`next_step` shape but ride in a successful
+  payload. The sweep covers `fail` only, which is also exactly what the coverage test derives.
+
 ## File layout
 
 ```
@@ -419,6 +444,7 @@ testing/harness/
   rubric.ts          # Rubric and Judgment shapes, JUDGE_INSTRUCTIONS, rubricPrompt, readJudgeResult (SDK-free)
   reference.ts       # buildReference: a hand-written conversation, run against the real engine
   eval-judge.ts      # bun run eval:judge: judge the reference pairs, or a stored run
+  error-sweep.ts     # errorSweep: every error code provoked once, with its command's --help (S4)
   verify-claims.ts   # offline re-verification of E1–E4 against a transcript
 testing/evals/       # agentic scenarios (RU + cross-cutting DE)
   eval_smoke.ts      # trivial scenario proving the loop (no Cog-Graphs CLI needed)
