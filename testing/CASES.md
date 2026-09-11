@@ -251,3 +251,14 @@ question either way.
     its `--help`. Added as insertions to a frozen file (two rows, two expected-code
     entries, and a second `import` statement rather than an edit to the first, since an
     edited line is a removed line). Sub-numbered off IN-10 under the subject-based rule.
+- **RU-5.1** What the User tells the Assistant about an item reaches the graph with its
+  meaning intact, including what is new when they update it. *(AI with rubric.)*
+  - Found while drafting the rubric layer (2026-09-10) and minted by Ethan 2026-09-11.
+    DE-23 guards fidelity at the CLI, where strings round-trip, and RU-5 asks whether the
+    convention describes the stored data. Nothing asked whether the stored data
+    describes what the User *said*. In the Walking Skeleton run of 2026-09-09T20-59, the
+    fresh thread heard "I finally finished Portal 2" and "I gave up on Hades for good",
+    decided nothing needed changing, and every gate passed. Grounded in the doc's
+    source-fidelity and Just-in-Time Intelligence principles. Rubric text is in
+    `testing/rubrics/DRAFTS.md`. Sub-numbered off RU-5 (the data the Assistant stores)
+    under the subject-based rule.

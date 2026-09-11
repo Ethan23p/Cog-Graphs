@@ -1,6 +1,6 @@
 # The rubric layer (RU-1..RU-7): drafts for review
 
-> **Status**: third draft, 2026-09-11. Nothing here is implemented or frozen. The claims
+> **Status**: third draft, 2026-09-11; RU-5.1 minted and RU-7 settled the same day. Nothing here is implemented or frozen. The claims
 > are the design doc's (Technical Specification > Testing & Evaluation > RU), and the rest
 > is proposal. Revised after Ethan's notes of 2026-09-11: the judge gets more latitude, and
 > the drafts are anchored in the doc rather than in the runs we happen to have.
@@ -77,6 +77,11 @@ User rather than inventing it.
 upon each use-case", and "if a human is directing their Assistant, the Assistant should
 conversationally establish the configuration options with them." A graph is something the
 User will own and come back to, and what it is for is theirs to say.
+
+**In v0.3.1:** the cases and UX flows are written for the full vision, which has a
+manual and a managed use-pattern. v0.3.1 keeps that structure in the code but has only
+one pattern, and nothing Operator- or User-facing presents it, so it is not among the
+things established here. The rest is the judge's to weigh.
 
 **Material:** the Walking Skeleton, from the first turn through `initialize`.
 
@@ -204,28 +209,24 @@ and non-empty. This case asserts it is worth reading.)
 CLI "returns intuitive, rich feedback in all cases which suggests next steps when
 relevant". An error an Operator cannot act on costs it a turn.
 
-**Material:** every error an Operator meets in the scenario runs, seen in context: what the
-agent was trying to do, the error it got, and what it did next. The scenarios above
-provoke some errors naturally. A turn can be added to invite a realistic one, such as a
-second graph in the directory so that leaving out `--graph` is ambiguous (DE-22's
-situation, met live).
+**Material:** a direct sweep with no live agent (settled with Ethan, 2026-09-11). Each
+error code the engine can raise is provoked once by direct invocation — 21 codes at the
+last count, by regex over `engine/main.ts` on 2026-09-10 — and put before the judge
+blind: the invocation, the complete error, and that command's `--help`, which is all an
+Operator meeting it would have. The sweep's own free test asserts that every code in the
+engine has an entry, so a new error cannot ship ungraded.
 
-**Weigh:** given only what was in front of it, could the Operator act on the `next_step`?
-And did it?
+**Weigh:** given only what is in front of it, could an Operator act on the `next_step`?
 
 **Anti-pattern:** a `next_step` that restates the failure, or points nowhere.
 
-*Supplement, proposed:* live runs will not meet every error the engine can raise. It has
-21 distinct codes (regex count over `engine/main.ts`, 2026-09-10). A cheap sweep would
-provoke each code once by direct invocation and put it before the same judge, alongside
-that command's `--help`, so every error is read at least once. It supplements the case and
-does not replace it.
+The case passes when every error in the sweep does.
 
 ---
 
-## RU-5.1 (proposed): what the User says reaches the graph
+## RU-5.1 (minted 2026-09-11): what the User says reaches the graph
 
-**Claim, draft:** What the User tells the Assistant about an item reaches the graph with its
+**Claim:** What the User tells the Assistant about an item reaches the graph with its
 meaning intact, including what is new when they update it.
 
 **Intent:** "Source data at source fidelity is the default assumption — phrasing, tacit
@@ -264,6 +265,7 @@ question in `CLAUDE.md` is still open.
 | **S1** `renderJudgeView(artifactDir)` | a stored run → the text a judge sees | free, `bun test` |
 | **S2** `judgeRubric(rubric, view)` | view + rubric → reasoning and verdict | paid, pennies per call |
 | **S3** scenarios | live agent → transcript + artifact | paid |
+| **S4** `errorSweep()` | engine → every error code, provoked once, with its command's `--help` | free |
 
 S1's red: a test over a stored run asserting that every user turn and every tool result
 appears in full, thread boundaries are marked, and the final `.md` is present. It is red
@@ -279,7 +281,7 @@ red is the scenario's own gates.
    `testing/DISPUTES.md`) and re-run it. That gives the judges real material.
 4. **RU-3**: the zero-priming scenario, three trials.
 5. **RU-6**: the ingestion scenario.
-6. **RU-7**, over errors from all of the above, plus the sweep if wanted.
+6. **RU-7**: the direct sweep. One judge call per error code, and no agent run.
 
 ## Implementation follow-ups these drafts surfaced
 
@@ -291,9 +293,12 @@ These are engine work, not eval work. The rubrics guard them once they land.
   `status=open`). The comment above `INTERFACE_SKILL_PRIMER` says why. The primer's
   "namespace, use-pattern, and a description" line is not about a domain, so it is left to
   RU-1 and RU-4.
+- **use-pattern withheld** (Ethan, 2026-09-11: "not meaningful in v0.3.1, so it shouldn't
+  be presented"). The profile no longer asks for it: it defaults to `manual` and is still
+  stored, so the structure survives. It no longer appears in the primer, `--help`, the
+  `initialize` payload, `introduce`, or the sidecar. A comment beside `PROFILE_FIELDS`
+  in `engine/main.ts` says why.
 
 ## Open for Ethan
 
-- **RU-5.1**: mint it as drafted, reword it, or drop it.
-- **RU-7's material**: errors met live, in context, as the case itself, with the direct
-  sweep only as a supplement. Is that the right reading of your note on RU-7?
+Nothing, as of 2026-09-11.

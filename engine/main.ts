@@ -40,6 +40,17 @@ const flags = new Set(argv.filter((_, i) => i !== commandIndex));
  */
 const PROFILE_FIELDS = ["namespace", "use-pattern", "description"] as const;
 
+// use-pattern stays in the artifact so the manual/managed structure survives into later
+// versions, but v0.3.1 has only 'manual' and the doc keeps the distinction out of view:
+// "From the user-facing side, there is no such thing as `--managed`, yet." So it is
+// defaulted rather than asked for, and withheld from every rendered surface — the primer,
+// --help, the initialize payload, introduce, and the sidecar. Ethan, 2026-09-11: "it's not
+// meaningful in v0.3.1, so it shouldn't be presented in the Operator/User-facing
+// experience." When managed lands, this is the switch to remove.
+const PROFILE_DEFAULTS: Record<string, string> = { "use-pattern": "manual" };
+const WITHHELD_PROFILE_FIELDS = new Set<string>(["use-pattern"]);
+const shownProfileFields = PROFILE_FIELDS.filter((f) => !WITHHELD_PROFILE_FIELDS.has(f));
+
 /**
  * `introduce` answers as one of two things and the payload says which, so an Operator
  * never has to infer from the shape whether they were told about a graph or about the
@@ -105,7 +116,7 @@ const SYSTEM_INTRODUCTION = [
   "EAV store you create per use-case and keep in your working directory.",
   "",
   "There is no Cog Graph here yet. To make one, write a profile as a small .yml file",
-  "(namespace, use-pattern, description, and a seed convention), then run:",
+  "(a namespace, a description, and a seed convention), then run:",
   "  cog-graphs initialize --profile <file.yml>",
 ].join("\n");
 
@@ -131,12 +142,11 @@ const INTERFACE_SKILL_PRIMER = [
   "",
   "## Spawn one",
   "",
-  "Establish the profile with the User conversationally — namespace, use-pattern, and a",
+  "Establish the profile with the User conversationally — a namespace, and a",
   "description in their words — then write it to a one-time-use `.yml` and pass it in:",
   "",
   "  profile:",
   "    namespace: my-list",
-  "    use-pattern: manual",
   "    description: What this graph is for, in the User's words.",
   "  convention: |",
   "    Every item carries a status.",
@@ -203,7 +213,7 @@ const HELP: Record<string, Help> = {
     usage: "cog-graphs initialize --profile <file.yml> [--dir <path>]",
     required: {
       "--profile":
-        "Path to a .yml holding a 'profile:' map (namespace, use-pattern, description) and a 'convention:' string to seed the graph with.",
+        "Path to a .yml holding a 'profile:' map (namespace, description) and a 'convention:' string to seed the graph with.",
     },
     optional: {
       "--dir": "Directory to create the graph in. Defaults to the working directory.",
@@ -338,10 +348,10 @@ function renderSidecar(dbPath: string): string {
           | { value: string }
           | undefined
       )?.value ?? path.basename(dbPath, ".sqlite");
-    const profile = db.query("SELECT field, value FROM profile").all() as {
+    const profile = (db.query("SELECT field, value FROM profile").all() as {
       field: string;
       value: string;
-    }[];
+    }[]).filter((r) => !WITHHELD_PROFILE_FIELDS.has(r.field));
     const convention = (
       db.query("SELECT text FROM convention ORDER BY seq").all() as { text: string }[]
     ).map((r) => r.text);
@@ -830,13 +840,18 @@ if (command === "initialize") {
   // graph that starts without one starts with the discipline already broken — and there
   // is no moment later at which anyone is prompted to supply it.
   const seedConvention = typeof doc.convention === "string" ? doc.convention.trim() : "";
-  const missing = PROFILE_FIELDS.filter((field) => typeof profile[field] !== "string");
+  if (typeof profile === "object" && profile !== null) {
+    for (const [field, value] of Object.entries(PROFILE_DEFAULTS)) {
+      if (typeof profile[field] !== "string") profile[field] = value;
+    }
+  }
+  const missing = shownProfileFields.filter((field) => typeof profile[field] !== "string");
   if (missing.length > 0) {
     fail(
       EXIT.USAGE,
       "profile_incomplete",
       `The profile is missing: ${missing.join(", ")}.`,
-      `Add the missing field(s) under 'profile:' in ${resolved}. Every profile needs: ${PROFILE_FIELDS.join(", ")}.`,
+      `Add the missing field(s) under 'profile:' in ${resolved}. Every profile needs: ${shownProfileFields.join(", ")}.`,
     );
   }
 
@@ -970,7 +985,7 @@ if (command === "initialize") {
   db.close();
   writeSidecar(dbPath);
 
-  succeed({ graph: namespace, path: dbPath, sidecar: path.join(dir, `${namespace}.md`), warnings, profile: Object.fromEntries(PROFILE_FIELDS.map((f) => [f, profile[f]])) });
+  succeed({ graph: namespace, path: dbPath, sidecar: path.join(dir, `${namespace}.md`), warnings, profile: Object.fromEntries(shownProfileFields.map((f) => [f, profile[f]])) });
 }
 
 /**
@@ -1426,6 +1441,7 @@ function instanceIntroduction(namespace: string, dbPath: string) {
   try {
     const profile = Object.fromEntries(
       (db.query("SELECT field, value FROM profile").all() as { field: string; value: string }[])
+        .filter((r) => !WITHHELD_PROFILE_FIELDS.has(r.field))
         .map((r) => [r.field, r.value]),
     );
     const convention = (
