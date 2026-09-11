@@ -255,6 +255,10 @@ question either way.
 - **RU-5.1** The Assistant keeps what the User gives the graph in the way the User asked it
   to be kept, and changes an entry faithfully when the User asks it to. *(AI with rubric,
   over the kept-quotes scenario.)*
+  - Its scenario is `testing/evals/eval_kept_quotes.ts` (`bun run eval:quotes`), whose
+    gates settle the one thing a gate can: after the User asks for the name to be taken
+    out, it is in no entity name, attribute, value, or `.md` face. The taste calls are the
+    judge's, over the same run.
   - Recast 2026-09-11 by Ethan. The first wording, below, judged whether the Operator's
     storage choices kept the User's meaning; but what the Operator chooses cannot be a
     regression, and the question is "Did the Agent do what the User asked for?" The

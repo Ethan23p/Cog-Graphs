@@ -311,9 +311,14 @@ judges every labelled pair and fails unless each verdict matches its label.
 1. ~~**S1**, the judge view.~~ Done.
 2. ~~**Reference pairs, then the judges for RU-1, RU-2, RU-4, RU-5 and RU-5.1** over them.~~
    Done; RU-5.1's pair is over the kept-quotes scenario rather than the Walking Skeleton.
-3. **Tighten the Walking Skeleton's user turns** (the resolved dispute in
-   `testing/DISPUTES.md`) and re-run it. That gives the judges real material.
-4. **RU-5.1's live scenario**, kept quotes, and a run judged against it.
+3. ~~**Tighten the Walking Skeleton's user turns** (the resolved dispute in
+   `testing/DISPUTES.md`) and re-run it.~~ Done 2026-09-11: every gate passed, turn 5
+   changed Portal 2 ("About halfway through, loving it." → "Finished it — loved the whole
+   thing."), 20 agent turns / 14 tool calls / $0.33. Judged: RU-1, RU-2, RU-4 and RU-5 all
+   pass on it ($0.32).
+4. ~~**RU-5.1's live scenario**, kept quotes, and a run judged against it.~~ Done
+   2026-09-11 (`bun run eval:quotes`): 15 gates passed, including the name being gone from
+   the graph and from the `.md` face, and RU-5.1 passes on the run ($0.20 + $0.06).
 5. **RU-3**: the zero-priming scenario, three trials.
 6. **RU-6**: the ingestion scenario.
 7. **RU-7**: the direct sweep. One judge call per error code, and no agent run.
