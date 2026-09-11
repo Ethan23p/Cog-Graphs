@@ -8,6 +8,8 @@ import { renderMarkdown } from "./transcript";
 // param below, which never surfaced because that repo had no typecheck step.)
 import type { CapturedMessage, GateResult, ScenarioResult } from "./types";
 import type { TurnView } from "./types";
+import type { ScenarioDefinition } from "./types";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const ARTIFACTS_ROOT = path.resolve(import.meta.dir, "..", "artifacts");
 
@@ -58,6 +60,64 @@ export async function writeArtifacts(name: string, result: ScenarioResult, dir?:
     ),
   );
   return dir;
+}
+
+/**
+ * What an offline judge needs that the transcript does not hold (S1).
+ *
+ * The user turns go into the session and are never echoed back as SDK messages, so
+ * `transcript.json` has none of them. The SDK emits `system/init` on every turn, not only
+ * on a new session, so it cannot mark a fresh thread either. And the graph's face lives in
+ * the sandbox, not the artifacts. Gates never missed any of this, because they run live
+ * against in-memory turn views and the sandbox itself. The judge reads only the stored
+ * record, so the record has to be complete.
+ */
+export interface RunRecord {
+  scenario: string;
+  workingDirectory: string;
+  agent: {
+    model: string;
+    systemPrompt?: string;
+    tools: string[];
+    skills?: string[] | "all";
+    /** Program names on the agent's PATH, without platform twins (`x.cmd` is `x`). */
+    installed: string[];
+  };
+  turns: { user: string; freshThread: boolean }[];
+  /** Every graph's `.md` face in the sandbox when this was written, keyed by relative path. */
+  faces: Record<string, string>;
+}
+
+/** Written at the start of a run and after every turn, so a killed run still leaves one. */
+export function writeRunRecord(dir: string, def: ScenarioDefinition, sandbox: string): void {
+  const record: RunRecord = {
+    scenario: def.name,
+    workingDirectory: sandbox,
+    agent: {
+      model: def.agent.model,
+      systemPrompt: def.agent.systemPrompt,
+      tools: def.agent.tools ?? ["Bash", "Read"],
+      skills: def.agent.skills,
+      installed: [...new Set(Object.keys(def.agent.install ?? {}).map((n) => n.replace(/\.(cmd|bat|exe)$/i, "")))],
+    },
+    turns: def.turns.map((t) => ({ user: t.user, freshThread: t.freshThread === true })),
+    faces: faces(sandbox),
+  };
+  writeFileSync(path.join(dir, "run.json"), JSON.stringify(record, null, 2));
+}
+
+/** The `.md` beside every `.sqlite` under `sandbox`, LF-normalized. */
+function faces(sandbox: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!existsSync(sandbox)) return out;
+  for (const entry of readdirSync(sandbox, { recursive: true }) as string[]) {
+    const rel = String(entry).replaceAll("\\", "/");
+    if (!rel.endsWith(".sqlite")) continue;
+    const face = rel.replace(/\.sqlite$/, ".md");
+    const abs = path.join(sandbox, face);
+    if (existsSync(abs)) out[face] = readFileSync(abs, "utf8").replaceAll("\r\n", "\n");
+  }
+  return out;
 }
 
 export function printReport(name: string, result: ScenarioResult): void {

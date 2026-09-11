@@ -37,7 +37,7 @@ The design doc sorts v0.3.1 test cases into IN / DE / RU / JU. Three have a home
 |---|---|
 | **IN** — invariants | `testing/tests/` (bun, deterministic, no API spend) |
 | **DE** — code/deterministic | `testing/tests/` + per-turn `gate()` callbacks in evals |
-| **RU** — AI w/ rubric | the `grade()` slot + `judge()` helper (structured verdicts) |
+| **RU** — AI w/ rubric | offline, over the stored record: `renderJudgeView` + one judge call per rubric (see *Gates read the live run; judges read the stored record*) |
 | **JU** — Ethan's judgement | not automatable — the Polish Phase manual pass |
 
 ## Runtime API (contract for eval definitions)
@@ -269,6 +269,48 @@ how this fails silently, on one platform, in the middle of a paid run.
 `cog-graphs introduce` returns a non-zero exit and the convention assertion fails for a
 reason that has nothing to do with the convention.
 
+### Gates read the live run; judges read the stored record
+
+The two graders get their evidence from different places, and the difference is the whole
+reason `run.json` exists.
+
+- **Gates** run inside the run, between turns. They see `ctx.lastTurn`, which is parsed live
+  and includes the user's text. They also see the `.sqlite` through `sandboxPath` and the
+  CLI's real exit codes through `exec`. They never read the artifacts.
+- **RU judges** run offline, after the run, from the artifact directory alone. That way a
+  rubric can be re-judged or iterated without paying for another agent run. Each judge is
+  still a live model call; "offline" means detached from the scenario, not model-free.
+
+Until 2026-09-11 nothing read a run after it ended, so nothing noticed that the stored record
+was incomplete:
+- **The user turns were missing.** They go into the session as input and are never echoed
+  back as SDK messages, so `transcript.json` held none of them.
+- **Fresh threads were unmarked.** The SDK emits `system/init` on every turn, not only on a
+  new session, so the transcript cannot mark where a thread began.
+- **The graph's face was never copied out of the sandbox.**
+- **Tool results were truncated.** `transcript.md` cuts every one to 300 characters.
+
+`writeRunRecord` in `report.ts` now writes `run.json` beside the transcript. It holds the
+preamble, every user turn with its `freshThread` flag, and every graph's `.md` face. It is
+written at the start, after every turn and at the end, so a killed run still leaves one.
+`renderJudgeView` in `judge-view.ts` joins the two files into the text a judge reads:
+- **Kept:** the conversation as it happened, every tool result verbatim.
+- **Left out:** bookkeeping and thinking.
+
+A run recorded before `run.json` existed is refused with a message rather than rendered
+without its user turns.
+
+The `grade()` slot on `ScenarioDefinition` has the same blind spot: it is handed
+`transcript.messages`, which has no user turns. No scenario uses it, and RU judging
+goes through the stored record instead.
+
+*Probes* (S1, `testing/tests/judge-view.test.ts`, run 2026-09-11; each reds exactly one of
+its four cases):
+- cut tool results to 300 characters in `renderJudgeView` → "appears in full" goes red;
+- drop the `THREAD_MARK` push → "a fresh thread is marked" goes red;
+- write `faces: {}` in `writeRunRecord` → "the graph's face" goes red;
+- render the `result` message's text → "bookkeeping stays out" goes red.
+
 ## File layout
 
 ```
@@ -277,7 +319,8 @@ testing/harness/
   runtime.ts         # runScenario + session driver (ALL SDK imports live here)
   types.ts           # ScenarioDefinition, TurnDef, GateContext, ScenarioResult, Stats
   transcript.ts      # message capture, parsing into per-turn views, md rendering
-  report.ts          # artifacts dir, summary, console output
+  report.ts          # artifacts dir, summary, run.json (writeRunRecord), console output
+  judge-view.ts      # renderJudgeView: a stored run → the text an RU judge reads (SDK-free)
   judge.ts           # optional LLM-as-judge helper (outputFormat json_schema)
   verify-claims.ts   # offline re-verification of E1–E4 against a transcript
 testing/evals/       # agentic scenarios (RU + cross-cutting DE)

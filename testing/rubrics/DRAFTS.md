@@ -49,7 +49,9 @@ results to 300 characters, so the judge view needs its own rendering.
   `unknown`. `unknown` is for material that cannot support a verdict, such as a run that
   halted before the moment in question. It never counts as a pass, and it is reported
   separately.
-- **Judge model `claude-opus-5`.** The in-loop agent is `claude-sonnet-5`.
+- **Judge model `claude-sonnet-5`** (Ethan, 2026-09-11), the same model as the in-loop
+  agent. The reference pairs are hand-written, so any lean a judge has towards its own
+  model's style shows up there first, as a pair it gets wrong.
 - **Scoring:** pass@1 for every case except RU-3, which is pass^3, as the doc specifies.
 - **Offline, over stored artifacts.** A proposed `bun run eval:judge [artifact dir]`
   grades a run that has already happened. A rubric can then be iterated without paying for
@@ -253,8 +255,8 @@ the User gave, or deciding their news was not news, is not.
 **Anti-pattern:** flattening what the User said, dropping an update, or interpreting at
 storage time what should have been kept for retrieval.
 
-**ID:** numbered by subject off RU-5, the data the Assistant stores. The minted-numbering
-question in `CLAUDE.md` is still open.
+**ID:** numbered by subject off RU-5, the data the Assistant stores, under the numbering
+rule Ethan settled on 2026-09-11 (`CLAUDE.md`).
 
 ---
 
@@ -267,10 +269,11 @@ question in `CLAUDE.md` is still open.
 | **S3** scenarios | live agent → transcript + artifact | paid |
 | **S4** `errorSweep()` | engine → every error code, provoked once, with its command's `--help` | free |
 
-S1's red: a test over a stored run asserting that every user turn and every tool result
-appears in full, thread boundaries are marked, and the final `.md` is present. It is red
-today because the function does not exist. S2's red is each rubric's reference pair. S3's
-red is the scenario's own gates.
+**S1 landed 2026-09-11** (`testing/tests/judge-view.test.ts`, `testing/harness/judge-view.ts`).
+Building it showed that the stored record was missing half of what a judge needs: the user
+turns, the thread boundaries, the preamble and the final `.md`. The runtime now writes
+them to `run.json`. Runs recorded before that date cannot be judged, and the renderer says
+so. S2's red is each rubric's reference pair. S3's red is the scenario's own gates.
 
 ## Proposed order
 
