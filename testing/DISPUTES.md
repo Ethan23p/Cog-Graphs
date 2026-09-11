@@ -41,6 +41,10 @@ to make a suite lie.
 
 ## Open
 
+_None._
+
+## Resolved
+
 ### Walking Skeleton turn 5: "modifying a couple items" passes with nothing modified
 - **Raised**: 2026-09-10 by Claude, while drafting the rubric layer.
 - **The case says**: `testing/evals/eval_walking_skeleton.ts`, turn 5 (fresh thread). The
@@ -62,9 +66,13 @@ to make a suite lie.
   values differ between the checkpoints either side of turn 5, so a no-op can never pass
   again. Separately, whether "finally finished" and "for good" should have been recorded
   as new information is a rubric question, raised as D8 in `testing/rubrics/DRAFTS.md`.
-- **Resolution**: _Ethan._
-
-## Resolved
+- **Resolution**: 2026-09-11, Ethan. **Not a defect.** The Walking Skeleton's user turns
+  were written while implementation requirements were looser, and they are low-signal
+  material. Tightening earlier work is a normal part of the process: "sometimes you'll
+  need to tighten up implementation from earlier." I read that as blessing a rewrite of
+  the scenario's user turns. The eval file is frozen, so the rewrite will land citing this
+  resolution. It has not been done yet, and it is listed as step 3 of the order in
+  `testing/rubrics/DRAFTS.md`.
 
 ### IN-9/IN-10/IN-11 — the "unbuilt command" row named `import` in a literal
 - **Raised**: 2026-09-09 by Claude, during DE-19.
