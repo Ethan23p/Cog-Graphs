@@ -27,7 +27,14 @@ import * as path from "node:path";
 const REPO_ROOT = path.resolve(import.meta.dir, "..");
 
 /** Pathspecs for the spec's second layer. */
-const FROZEN_PATHS = ["testing/tests/*.test.ts", "testing/tests/contract.ts", "testing/evals/*.ts"];
+// The rubric layer's rubrics and reference pairs are spec too: a judge is calibrated against
+// them, and an edited reference is a moved goalpost exactly as an edited assertion is.
+const FROZEN_PATHS = [
+  "testing/tests/*.test.ts",
+  "testing/tests/contract.ts",
+  "testing/evals/*.ts",
+  "testing/rubrics/*.ts",
+];
 
 function git(args: string[]): string {
   const r = spawnSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" });

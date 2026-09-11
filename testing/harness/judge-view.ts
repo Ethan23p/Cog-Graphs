@@ -59,6 +59,12 @@ export function renderJudgeView(artifactDir: string): string {
         if (block?.type === "text" && block.text) out.push(`**Assistant:** ${block.text}`, "");
         if (block?.type === "tool_use") {
           const input = block.input as AnyMsg;
+          // A written file is shown as it reads. As a JSON string its newlines are escapes,
+          // and a judge quoting the profile back would quote text the view never showed.
+          if (block.name === "Write" && typeof input?.file_path === "string" && typeof input?.content === "string") {
+            out.push(`**Tool call** (Write): ${input.file_path}`, fenced(input.content), "");
+            continue;
+          }
           const shown =
             block.name === "Bash" && typeof input?.command === "string" ? input.command : JSON.stringify(input);
           out.push(`**Tool call** (${block.name}):`, fenced(shown), "");

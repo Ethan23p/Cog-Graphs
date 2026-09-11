@@ -252,8 +252,16 @@ question either way.
     its `--help`. Added as insertions to a frozen file (two rows, two expected-code
     entries, and a second `import` statement rather than an edit to the first, since an
     edited line is a removed line). Sub-numbered off IN-10 under the subject-based rule.
-- **RU-5.1** What the User tells the Assistant about an item reaches the graph with its
-  meaning intact, including what is new when they update it. *(AI with rubric.)*
+- **RU-5.1** The Assistant keeps what the User gives the graph in the way the User asked it
+  to be kept, and changes an entry faithfully when the User asks it to. *(AI with rubric,
+  over the kept-quotes scenario.)*
+  - Recast 2026-09-11 by Ethan. The first wording, below, judged whether the Operator's
+    storage choices kept the User's meaning; but what the Operator chooses cannot be a
+    regression, and the question is "Did the Agent do what the User asked for?" The
+    scenario, Ethan's: the User collects tidied quotations of their own from pasted
+    snippets, one names a person, and they later ask for the name to be taken out.
+  - First wording: what the User tells the Assistant about an item reaches the graph with
+    its meaning intact, including what is new when they update it.
   - Found while drafting the rubric layer (2026-09-10) and minted by Ethan 2026-09-11.
     DE-23 guards fidelity at the CLI, where strings round-trip, and RU-5 asks whether the
     convention describes the stored data. Nothing asked whether the stored data

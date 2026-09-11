@@ -157,3 +157,36 @@ describe("S1 — a stored run renders into what the judge sees", () => {
     }
   });
 });
+
+// A file the assistant writes is shown as the file reads, not as an escaped JSON string.
+//
+// Found by the first RU calibration (2026-09-11): the profile an assistant writes is RU-1's
+// and RU-5's central evidence, and the view showed it as one line of JSON with `\n` escapes.
+// The judges' quotes of it came back as the YAML it encodes, which the view did not contain.
+// That was the view's doing, not the judges': they were decoding the escapes for themselves.
+// The failure this rules out: a written file reaching the judge in a form it has to decode
+// before it can read, and quote, what was written.
+describe("S1 — a written file reaches the judge as it reads", () => {
+  test("Write content appears verbatim, line by line, with its path", () => {
+    const profile = "profile:\n  namespace: reading\n  description: Books I'm reading.\nconvention: |\n  Every book carries a status.\n";
+    const dir = makeSandbox("judge-view-write-");
+    const messages = [
+      call("tool-w", "Write", { file_path: "/sandbox/reading.profile.yml", content: profile }),
+      answer("tool-w", "File created successfully at: /sandbox/reading.profile.yml"),
+      say("Wrote the profile."),
+      done(SESSION_A),
+    ].map((message, seq) => ({ seq, ts: "2026-09-11T00:00:00.000Z", message }));
+    writeFileSync(path.join(dir, "transcript.json"), JSON.stringify(messages, null, 2));
+    const def: ScenarioDefinition = {
+      name: "judge-view-write",
+      agent: { model: "claude-sonnet-5", tools: ["Write"] },
+      turns: [{ user: USERS[0]! }],
+    };
+    writeRunRecord(dir, def, dir);
+    const view = renderJudgeView(dir);
+
+    expect(view).toContain(profile.trimEnd());
+    expect(view).toContain("/sandbox/reading.profile.yml");
+    expect(view).not.toContain("\\n  namespace");
+  });
+});

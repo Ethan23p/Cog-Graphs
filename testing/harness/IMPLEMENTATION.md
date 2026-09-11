@@ -311,6 +311,100 @@ its four cases):
 - write `faces: {}` in `writeRunRecord` → "the graph's face" goes red;
 - render the `result` message's text → "bookkeeping stays out" goes red.
 
+A file the agent wrote reaches the judge as it reads: a `Write` call renders as its path and
+its content, fenced, rather than as JSON whose newlines are `\n` escapes. The judges had been
+decoding those escapes themselves, and a judge quoting a profile back quoted text the view
+never showed. *Probe:* disable the `Write` branch in `renderJudgeView` → "a written file
+reaches the judge as it reads" goes red (run 2026-09-11).
+
+### How an RU judge answers
+
+`judgeRubric` (`judge.ts`) sends one rubric and one rendered view to `claude-sonnet-5` and
+reads back a `Judgment`: `verdict`, `harness_issue`, `quotes`, `rationale`. The words it is
+given are `JUDGE_INSTRUCTIONS` and `rubricPrompt` in `rubric.ts`, which is SDK-free so both
+can be read and tested without a paid call. `bun run eval:judge` drives it; each judge's
+whole session is written to `judges/<RU>__<conversation>.json` beside the verdicts, so a
+surprising verdict or a failed call can be read at its source.
+
+**The SDK's structured output is a tool, not constrained decoding.** `outputFormat` adds a
+`StructuredOutput` tool; the model calls it, the SDK validates the arguments against the
+schema and re-prompts on a mismatch, and after five failed attempts ends with
+`error_max_structured_output_retries`. The docs add that a `success` can arrive with no
+`structured_output`. So:
+- **Only a `success` carrying a well-formed judgment is a verdict** (`readJudgeResult`).
+  Anything else is an error, reported apart from `fail` and `unknown`. In the first
+  calibration a judge that had run out of patience submitted a placeholder that validated,
+  and it was scored as a pass. *Probe:* skip the subtype check in `readJudgeResult` → "anything
+  else is an error, never a verdict" in `testing/tests/judgment.test.ts` goes red (run
+  2026-09-11).
+- **`maxTurns` is 6.** Every retry is a turn. At 2, 9 of 10 calibration calls ended
+  `error_max_turns` (2026-09-11). At 6, the SDK's own limit of five attempts is the one that
+  ends a failing judge. *Probe (paid, reasoned):* set it to 2 and run
+  `bun run eval:judge --references`; expect `error_max_turns` on any call that retried.
+- **`eval:judge` flags a judgment that took more than one attempt.** It still counts, and
+  it is worth reading.
+
+**No `systemPrompt`.** The docs' prescription for "a thin tool-calling loop with no agent
+persona, where you supply all behavior in the user prompt" is to leave it unset, which keeps
+the SDK's minimal default and its tool-calling guidance; a custom string replaces that
+guidance. An A/B on 2026-09-11 showed no measurable difference between the two at six calls
+each, so this is the docs' call, adopted as such, not a measured one.
+
+**The answer's format was measured, 2026-09-11.** Each fix below is a response to a failure
+read in the judge's own session, not a guess:
+
+| Prompt and schema | Where | First attempt valid | Verdicts |
+|---|---|---|---|
+| prose field `reasoning`, first | early calibration | every lost field boundary (23 of 23) began with the judge closing the field as `</reasoning>` | several `error_max_structured_output_retries`, and one placeholder pass |
+| `rationale`, first; JSON example in the prompt | 18 calls | 15 of 18 | 18 of 18 |
+| same | calibration, 10 calls | 9 of 10 | 9; RU-4 × walking-skeleton ran out of retries, all 5 attempts swallowing a field after `</rationale>` |
+| `rationale` last; JSON example | RU-4 × walking-skeleton, ×6 | 1 of 6: the judge passed the example whole as one argument, or filled in the tool-call placeholders `$PARAMETER_NAME` / `$PARAMETER_VALUE` | 6 of 6 |
+| `rationale` last; fields named in prose, no example | RU-4 × walking-skeleton, ×6 | 5 of 6 | 6 of 6 |
+| same (**adopted**) | calibration, 10 calls | 5 of 10: four swallowed `verdict` after `</rationale>`, one began the arguments as JSON text and switched format mid-way | 10 of 10, every label matched |
+
+What that settled, and what it did not:
+- **The judge often closes its long prose field with a tag named after the field**
+  (`</rationale>`) instead of ending the argument, and whatever field it writes next is
+  swallowed into the string. It is not rare: 7 of the adopted format's 10 calibration calls
+  did it at least once. The judge's thinking comes back empty in the stored messages, so why
+  is not known.
+- **`rationale` is last, which contains the damage only when the judge keeps the order.**
+  When it does, the stray `</rationale>` (often with `</invoke>`) stays in the rationale's
+  tail and the other three fields are intact. But the order in which arguments are written is
+  the model's, and in 5 of those 10 calls it wrote `verdict` last anyway; then the verdict is
+  swallowed, validation fails, and the SDK's retry recovers it. The tail is left as the judge
+  wrote it rather than stripped: reading the judge's words back is not something to do by
+  pattern-matching them.
+- **The prompt names the fields and gives no example.** That is the docs' own shape: a clear
+  prompt and a focused schema. Given a JSON example, the judge copied it.
+- **The retry is the mechanism, and it holds.** Under the adopted format, 16 of 16 calls ended
+  in a genuine verdict (one error in 10 under the format before it). A retried judgment is the
+  same judgment re-submitted whole; `eval:judge` flags it so it can be read.
+- **The judge thinks before it calls the tool**, so the verdict coming first in the answer is
+  not the verdict being decided first.
+- **Not tried:** a prose field name less common as a tag in prompts than `reasoning` or
+  `rationale`, or carrying the rationale as an array of paragraphs, since the `quotes` array
+  was never mis-closed. Either is the next experiment if retries become a cost worth paying
+  down.
+
+*Probe (paid):* `bun run eval:judge --references`; every label must match, and on the
+reference set as it stood on 2026-09-11 it did, 10 of 10. For the order: put `rationale`
+first in `JUDGMENT_SCHEMA` and in `JUDGE_INSTRUCTIONS` and judge RU-4 a few times
+(`bun run eval:judge --references RU-4`); expect first attempts missing a field and, on the
+walking-skeleton reference, a call that runs out of retries (1 of 1 did on 2026-09-11).
+
+**`harness_issue` is the judge's channel to us** (Ethan, 2026-09-11): null, unless the rubric
+or the conversation looks broken. `eval:judge` prints it in full. It is how a judge says
+"this test is broken" instead of being forced to pick a verdict over bad material.
+
+**Reference conversations are real where it matters.** `buildReference` (`reference.ts`)
+takes a hand-written conversation and runs every `cog-graphs` command in it against the
+engine, in a sandbox under `~/cog-graph-workspaces/`, so the tool results and the final face
+the judge reads are the engine's own, and a reference that stops matching the engine throws
+rather than drifting. *Probe:* change an `add-item` in `testing/rubrics/references.ts` to an
+entity that already exists → "every reference builds against the real engine" in
+`testing/tests/references.test.ts` goes red (reasoned: the builder throws on an unexpected exit).
+
 ## File layout
 
 ```
@@ -321,7 +415,10 @@ testing/harness/
   transcript.ts      # message capture, parsing into per-turn views, md rendering
   report.ts          # artifacts dir, summary, run.json (writeRunRecord), console output
   judge-view.ts      # renderJudgeView: a stored run → the text an RU judge reads (SDK-free)
-  judge.ts           # optional LLM-as-judge helper (outputFormat json_schema)
+  judge.ts           # judgeRubric (the RU judge) and the generic judge() slot; outputFormat json_schema
+  rubric.ts          # Rubric and Judgment shapes, JUDGE_INSTRUCTIONS, rubricPrompt, readJudgeResult (SDK-free)
+  reference.ts       # buildReference: a hand-written conversation, run against the real engine
+  eval-judge.ts      # bun run eval:judge: judge the reference pairs, or a stored run
   verify-claims.ts   # offline re-verification of E1–E4 against a transcript
 testing/evals/       # agentic scenarios (RU + cross-cutting DE)
   eval_smoke.ts      # trivial scenario proving the loop (no Cog-Graphs CLI needed)

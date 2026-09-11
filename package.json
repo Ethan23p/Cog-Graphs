@@ -10,6 +10,7 @@
     "check": "bun run typecheck && bun run guard && bun test --timeout 20000 testing/tests",
     "eval:smoke": "bun run testing/evals/eval_smoke.ts",
     "eval:skeleton": "bun run testing/evals/eval_walking_skeleton.ts",
+    "eval:judge": "bun run testing/harness/eval-judge.ts",
     "verify:claims": "bun run testing/harness/verify-claims.ts",
     "typecheck": "tsc --noEmit"
   },
