@@ -192,3 +192,35 @@ _None._
   in `CLAUDE.md` and minted cases are listed in `CASES.md`; future gaps go straight there
   rather than here. This file returns to what it is for — a landed case that looks
   *wrong*, which is still Ethan's to resolve.
+### RU-6 withdrawn — the behavior it grades is not ours to grade
+- **Raised**: 2026-09-12 by Ethan, reviewing `docs/SCRATCHPAD.md`.
+- **Not a dispute about a claim that was wrong** — RU-6 worked. It was landed with a
+  reference pair the judge got right, its scenario passed every gate, and on the live run
+  the judge failed the agent with a rationale that named exactly what the doc's flow is
+  written against. It is being withdrawn because the *subject* is not one Ethan wants
+  graded, which is a scope call and therefore his.
+- **The ruling** (Ethan, 2026-09-12): "We're not really interested in evaluating
+  *implicit* behavior. I might even remove RU-6; but the solution would be to include
+  instruction which tells the agent to be careful with bulk import, to ensure they
+  understand... I think I'd rather remove it, I'm not interested in evaluating this
+  behavior."
+- **Why this needed an entry rather than a commit**: the doc's own non-negotiable is that
+  "Tests-cases, rubrics, and such are never edited to meet the implementation; exceptions
+  must be explicitly covered with Ethan, clearly recorded, and timestamped." Removing RU-6
+  takes lines out of three frozen files — `testing/rubrics/rubrics.ts`,
+  `testing/rubrics/references.ts`, and the whole of `testing/evals/eval_ingestion.ts` — so
+  `bun run guard` rejects it by design. This is the exception, recorded and timestamped.
+  Note what the ruling is *not*: it is not "the implementation failed RU-6, so RU-6 goes."
+  The implementation did fail it. The reason it goes is that the behavior was never
+  something the program should be graded on, and a rubric that grades an agent's taste
+  rather than the program's guidance is measuring the wrong system.
+- **What changed**: the RU-6 rubric, both its reference conversations and their two labels,
+  and the ingestion scenario. `eval:ingestion` is gone from `package.json`. A comment at the
+  removal site in each frozen file points here and at f1803a8, where all of it still lives.
+  The run artifacts are kept, as every run's are.
+- **Still open, and Ethan's**: the design doc is the authority for scope, and RU-6 is still
+  block 60258 on `Cog-Graphs: Test Inventory, Walking Skeleton`. Until that block is struck,
+  the doc and the repo disagree, and the doc wins. Proposed replacement text is in
+  `docs/SCRATCHPAD.md`.
+- **Resolution**: 2026-09-12, Ethan — removal blessed, landed in the same commit as this
+  entry. The doc edit is outstanding.

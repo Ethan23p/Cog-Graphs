@@ -127,26 +127,14 @@ export const RUBRICS: Rubric[] = [
       "Stalling, giving up, working around the program, or needing the User to explain the program to it.",
     scenarios: ["zero-priming"],
   },
-  {
-    id: "RU-6",
-    claim:
-      "Given unstructured source material, the assistant confirms its reading of the material before committing " +
-      "all of it, then ingests the rest in bulk.",
-    intent:
-      "The design's own flow: \"I'll do one ingestion to confirm my understanding, then I can take advantage of " +
-      "one of the bulk ingestion options.\" Ergonomics and token efficiency are priorities, and a bulk ingestion " +
-      "of a misread source multiplies the misreading.",
-    material: "The conversation from the User handing over the material to the items being stored.",
-    weigh:
-      "Did the approach suit the material? The flow above is the model, and its spirit — confirm, then scale — " +
-      "matters more than its literal count. Confirming can be a sample committed and shown, or a reading put to " +
-      "the User before anything is stored. What it cannot be is nothing.",
-    antiPattern:
-      "Going item by item through a large batch, or committing a mapping in bulk that was never checked against " +
-      "the source or with the User.",
-    scenarios: ["ingestion"],
-  },
 ];
+
+// RU-6 stood here and was withdrawn on 2026-09-12 (Ethan): "We're not really interested in
+// evaluating *implicit* behavior … I'm not interested in evaluating this behavior." The
+// removal from three frozen files is blessed and timestamped in testing/DISPUTES.md. Its
+// scenario, references and the live verdict that failed are in the history at f1803a8 — the
+// case was working when it was withdrawn, which is the point worth remembering: it was
+// dropped because the behavior is not ours to grade, not because it was passing.
 
 // RU-7 is not here yet, and the gap is deliberate. Its material is one error on its own —
 // the invocation, the error, and that command's --help — which is not a conversation, and

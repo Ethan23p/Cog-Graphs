@@ -124,7 +124,11 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - **RU-4** The Assistant does not over-explain the mechanics to the User.
   - Anchored: the judge is shown the user turns and asked whether any assistant message would require the User to learn a system abstraction in order to follow it.
 - **RU-5** The convention the Assistant seeds actually describes the data it is about to store: the attributes the convention names are the attributes it then uses.
-- **RU-6** Given unstructured source material, the Assistant does one ingestion to confirm its understanding, then bulk-ingests the rest.
+- ~~**RU-6** Given unstructured source material, the Assistant does one ingestion to confirm its understanding, then bulk-ingests the rest.~~ **Withdrawn 2026-09-12** (Ethan): the
+  program should guide an agent that is about to bulk-import, but the agent's own restraint
+  is implicit behavior and not what this suite grades. Blessed in `testing/DISPUTES.md`; the
+  rubric, its pair and the ingestion scenario are in the history at f1803a8. Still present in
+  the design doc (block 60258), which is Ethan's to strike.
 - **RU-7** The `next_step` carried by an error is actionable — it names a command or a concrete next move, not a restatement of the failure.
   - IN-11 asserts the field is present and non-empty; this asserts it is worth reading.
 

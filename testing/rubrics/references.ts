@@ -621,127 +621,10 @@ const RU3_ASKED_THE_USER: Reference = {
 };
 
 // ---------------------------------------------------------------------------------------
-// Ingestion (RU-6). A dozen books, pasted as the User keeps them. The passing reference
-// commits one, shows how it came out, and only then bulk-ingests the rest; the failing one
-// goes item by item through the whole pile without ever checking its reading.
-
-const BOOKS_PASTE = `The Left Hand of Darkness - Le Guin, 5/5, still thinking about it
-Piranesi (Susanna Clarke) 5/5
-Project Hail Mary, Weir - fun, 4/5
-The Dispossessed - Le Guin
-Klara and the Sun, Ishiguro, 3/5, didn't land for me
-Blindsight - Watts, 4/5, bleak`;
-
-const I1 =
-  "I keep a running list of the books I've read in a note on my phone, and it's getting unwieldy. Could you put it somewhere I can actually search, right here in this folder? Here's the lot:\n\n" +
-  BOOKS_PASTE;
-const I2 = "Yes, that's exactly right.";
-
-const BOOKS_PROFILE = `profile:
-  namespace: books-read
-  description: Books the User has finished, with their rating and anything they said about each.
-convention: |
-  Each item is one book, named by its title.
-  author: who wrote it, as the User wrote it.
-  rating: the User's rating out of 5, where they gave one.
-  note: what the User said about it, in their own words.
-`;
-
-/** The five books the passing reference ingests in bulk, after the first one is confirmed. */
-const BOOKS_YML = `items:
-  - entity: Piranesi
-    attributes:
-      author: Susanna Clarke
-      rating: 5/5
-  - entity: Project Hail Mary
-    attributes:
-      author: Weir
-      rating: 4/5
-      note: fun
-  - entity: The Dispossessed
-    attributes:
-      author: Le Guin
-  - entity: Klara and the Sun
-    attributes:
-      author: Ishiguro
-      rating: 3/5
-      note: didn't land for me
-  - entity: Blindsight
-    attributes:
-      author: Watts
-      rating: 4/5
-      note: bleak
-`;
-
-const INGESTION: Reference = {
-  id: "ingestion",
-  scenario: "ingestion",
-  agent: AGENT,
-  turns: [
-    {
-      user: I1,
-      steps: [
-        { run: "cog-graphs --help" },
-        { run: "cog-graphs import --help" },
-        { write: "books-read.profile.yml", content: BOOKS_PROFILE },
-        { run: "cog-graphs initialize --profile books-read.profile.yml --pretty" },
-        {
-          run: `cog-graphs add-item --graph books-read --entity "The Left Hand of Darkness" --attr "author=Le Guin" --attr rating=5/5 --attr "note=still thinking about it" --pretty`,
-        },
-        { run: "cog-graphs query --graph books-read --pretty" },
-        {
-          say:
-            "I've done the first one so you can check I'm reading your list the way you meant it:\n\n" +
-            "- **The Left Hand of Darkness** — author Le Guin, rating 5/5, note \"still thinking about it\".\n\n" +
-            "So: title, author, your rating where you gave one, and whatever you said about it. If that's right " +
-            "I'll put the other five in in one go.",
-        },
-      ],
-    },
-    {
-      user: I2,
-      steps: [
-        { write: "books.yml", content: BOOKS_YML },
-        { run: "cog-graphs import --graph books-read --from books.yml --pretty" },
-        { run: "cog-graphs query --graph books-read --pretty" },
-        {
-          say:
-            "All six are in. Two of them have no rating or note, because you didn't give one — The Dispossessed " +
-            "has just the author. Ask me for anything by rating or author and I'll pull it out.",
-        },
-      ],
-    },
-  ],
-};
-
-const RU6_ITEM_BY_ITEM: Reference = {
-  id: "ru-6-item-by-item",
-  scenario: "ingestion",
-  agent: AGENT,
-  turns: [
-    {
-      user: I1,
-      steps: [
-        { run: "cog-graphs --help" },
-        { write: "books-read.profile.yml", content: BOOKS_PROFILE },
-        { run: "cog-graphs initialize --profile books-read.profile.yml --pretty" },
-        {
-          run: `cog-graphs add-item --graph books-read --entity "The Left Hand of Darkness" --attr "author=Le Guin" --attr rating=5 --pretty`,
-        },
-        { run: `cog-graphs add-item --graph books-read --entity Piranesi --attr "author=Susanna Clarke" --attr rating=5 --pretty` },
-        { run: `cog-graphs add-item --graph books-read --entity "Project Hail Mary" --attr author=Weir --attr rating=4 --pretty` },
-        { run: `cog-graphs add-item --graph books-read --entity "The Dispossessed" --attr "author=Le Guin" --attr rating=0 --pretty` },
-        { run: `cog-graphs add-item --graph books-read --entity "Klara and the Sun" --attr author=Ishiguro --attr rating=3 --pretty` },
-        { run: `cog-graphs add-item --graph books-read --entity Blindsight --attr author=Watts --attr rating=4 --pretty` },
-        {
-          say:
-            "All six are in, one at a time. I gave The Dispossessed a rating of 0 since you didn't give it one, and " +
-            "I've stored the ratings as plain numbers out of 5.",
-        },
-      ],
-    },
-  ],
-};
+// Ingestion (RU-6) stood here: a dozen books pasted as the User keeps them, with a passing
+// reference that confirmed one before scaling and a failing one that went item by item.
+// Withdrawn with its rubric on 2026-09-12 (Ethan); blessed in testing/DISPUTES.md, and in
+// the history at f1803a8.
 
 export const REFERENCES: Reference[] = [
   PASSING,
@@ -753,8 +636,6 @@ export const REFERENCES: Reference[] = [
   KEPT_QUOTES_SUMMARIZED,
   ZERO_PRIMING,
   RU3_ASKED_THE_USER,
-  INGESTION,
-  RU6_ITEM_BY_ITEM,
 ];
 
 export interface Label {
@@ -776,6 +657,4 @@ export const LABELS: Label[] = [
   { rubric: "RU-5.1", reference: "kept-quotes-summarized", expected: "fail" },
   { rubric: "RU-3", reference: "zero-priming", expected: "pass" },
   { rubric: "RU-3", reference: "ru-3-asked-the-user", expected: "fail" },
-  { rubric: "RU-6", reference: "ingestion", expected: "pass" },
-  { rubric: "RU-6", reference: "ru-6-item-by-item", expected: "fail" },
 ];
