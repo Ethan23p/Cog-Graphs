@@ -46,7 +46,12 @@ view of it, and nothing is ever taken back from the view.** And the exit alphabe
 6 internal`. A new command picks from that list; it does not extend it.
 
 Run `bun run check`, not just `bun test`: a missing key on the exit-code map exits **0**
-while printing a good error, and only `tsc` sees it.
+while printing a good error. `tsc` catches that at the source; the tests catch it only
+where they assert that exact code.
+
+`engine/IMPLEMENTATION.md` polices itself: every entry names a probe (a change to
+`main.ts` and the case expected to go red). Run a probe against the one test file that
+holds its case — seconds, not the full suite — and delete any entry whose probe stays green.
 
 ## Roles
 
