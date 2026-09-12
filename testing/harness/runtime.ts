@@ -9,7 +9,7 @@ import { homedir, tmpdir } from "node:os";
 import * as path from "node:path";
 import { Transcript } from "./transcript";
 import { capture, regressions, type Checkpoint, type Violation } from "./checkpoint";
-import { writeArtifacts, writePartialArtifacts, createArtifactsDir, printReport } from "./report";
+import { writeArtifacts, writePartialArtifacts, createArtifactsDir, printReport, writeRunRecord } from "./report";
 import type {
   GateContext,
   GateResult,
@@ -169,6 +169,8 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
   // Progress goes to stderr so it never pollutes stdout consumers; artifacts
   // dir exists from the start so every partial flush has a home.
   const artifactsDir = await createArtifactsDir(def.name);
+  // The judge view's record (S1): user turns, thread boundaries, preamble, and the faces.
+  writeRunRecord(artifactsDir, def, sandbox);
   const progress = (line: string) => console.error(`[${def.name}] ${line}`);
   progress(`run started — ${def.turns.length} turns, artifacts: ${artifactsDir}`);
 
@@ -284,6 +286,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
             `turn ${turnIndex + 1}/${def.turns.length} done in ${((Date.now() - turnStartedAt) / 1000).toFixed(1)}s — gates: ${turnGates.length - nFail} pass${nFail ? `, ${nFail} FAIL` : ""} — $${costSoFar.toFixed(2)} so far`,
           );
           await writePartialArtifacts(artifactsDir, def.name, transcript.messages, transcript.turns, gates);
+          writeRunRecord(artifactsDir, def, sandbox);
 
           // Taken after the gate, so a gate that reads the graph cannot be blamed for a
           // change it merely observed, and labelled by the turn that produced it.
@@ -378,6 +381,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     error: fatalError,
   };
   result.artifactsDir = await writeArtifacts(def.name, result, artifactsDir);
+  writeRunRecord(artifactsDir, def, sandbox);
   printReport(def.name, result);
   return result;
 }

@@ -1,9 +1,14 @@
 # The rubric layer (RU-1..RU-7): drafts for review
 
-> **Status**: third draft, 2026-09-11; RU-5.1 minted and RU-7 settled the same day. Nothing here is implemented or frozen. The claims
-> are the design doc's (Technical Specification > Testing & Evaluation > RU), and the rest
-> is proposal. Revised after Ethan's notes of 2026-09-11: the judge gets more latitude, and
-> the drafts are anchored in the doc rather than in the runs we happen to have.
+> **Status**: landed, 2026-09-12. Every RU case in scope is implemented and green:
+> RU-1, RU-2, RU-4, RU-5 and RU-5.1 over the Walking Skeleton and kept-quotes, RU-3 at a
+> true pass^3 (every trial judged, not just gated), and RU-7 over the error sweep on
+> demand. **RU-6 was withdrawn** the same day — Ethan's scope call, blessed and timestamped
+> in `testing/DISPUTES.md`. This file is no longer a proposal; it is the record of how each
+> rubric came to be worded the way it is, and the earlier drafting is left standing on
+> purpose so the reasoning is legible. The claims are the design doc's (Technical
+> Specification > Testing & Evaluation > RU). One thing is outstanding and Ethan's: the doc
+> still lists RU-6.
 
 ## What these cases are for
 
@@ -49,7 +54,19 @@ results to 300 characters, so the judge view needs its own rendering.
   `unknown`. `unknown` is for material that cannot support a verdict, such as a run that
   halted before the moment in question. It never counts as a pass, and it is reported
   separately.
-- **Judge model `claude-opus-5`.** The in-loop agent is `claude-sonnet-5`.
+
+  *As built (2026-09-11):* the judge reasons in its own thinking before it answers, and
+  answers through the Agent SDK's structured output with four fields, `verdict`,
+  `harness_issue`, `quotes` and `rationale`, in that order. `rationale` comes last on
+  purpose: the long prose field is the one the judge often closes wrongly, and last, it
+  has nothing after it to swallow. The judge does not always keep the order, and then the
+  SDK's retry recovers the answer (see `testing/harness/IMPLEMENTATION.md`, "How an RU
+  judge answers", for the counts). `harness_issue` is the judge's channel to us, per Ethan: null, unless
+  the rubric or the material looks broken. An answer that never validates is an error,
+  reported apart from every verdict.
+- **Judge model `claude-sonnet-5`** (Ethan, 2026-09-11), the same model as the in-loop
+  agent. The reference pairs are hand-written, so any lean a judge has towards its own
+  model's style shows up there first, as a pair it gets wrong.
 - **Scoring:** pass@1 for every case except RU-3, which is pass^3, as the doc specifies.
 - **Offline, over stored artifacts.** A proposed `bun run eval:judge [artifact dir]`
   grades a run that has already happened. A rubric can then be iterated without paying for
@@ -178,7 +195,7 @@ once and then ignored.
 
 ---
 
-## RU-6: one ingestion to confirm, then bulk
+## RU-6: one ingestion to confirm, then bulk — WITHDRAWN 2026-09-12
 
 **Claim:** Given unstructured source material, the Assistant does one ingestion to
 confirm its understanding, then bulk-ingests the rest.
@@ -199,7 +216,7 @@ that was never checked.
 
 ---
 
-## RU-7: `next_step` is worth reading
+## RU-7: `next_step` is worth reading — LANDED 2026-09-12 (`bun run eval:errors`)
 
 **Claim:** The `next_step` carried by an error is actionable. It names a command or a
 concrete next move, not a restatement of the failure. (IN-11 asserts the field is present
@@ -224,37 +241,48 @@ The case passes when every error in the sweep does.
 
 ---
 
-## RU-5.1 (minted 2026-09-11): what the User says reaches the graph
+## RU-5.1 (minted 2026-09-11): the User's expectations are kept, and a change is made as asked
 
-**Claim:** What the User tells the Assistant about an item reaches the graph with its
-meaning intact, including what is new when they update it.
+**Claim:** The Assistant keeps what the User gives the graph in the way the User asked it
+to be kept, and changes an entry faithfully when the User asks it to.
 
-**Intent:** "Source data at source fidelity is the default assumption — phrasing, tacit
-knowledge, metaphors — contradictions and all." And from Just-in-Time Intelligence: "The
-fatal failure mode with modern AI is interpretations over interpretations," so inference
-is deferred to retrieval. Also: "quality of the data within only builds, never regresses."
+**Intent** (Ethan, 2026-09-11): "This app should guide the Agent to use the expectations
+set by the User, and to faithfully modify entries when requested." The profile holds "the
+part that depends upon each use-case", and the convention carries it to every session.
 
-**Why the gap survives the notes of 2026-09-11:** once the Walking Skeleton's user turns
-are tightened, the fresh thread will have a real modification to make, and the gates will
-check deterministically that values changed. That closes *whether it modified*. It does not
-close *whether the meaning survived*. DE-23 guards fidelity at the CLI, where strings
-round-trip. RU-5 asks whether the convention describes the stored data. Nothing asks
-whether the stored data describes what the User said. An Assistant can modify an item and
-still flatten "I gave up on it for good" into a bare status, which might be exactly right
-or might lose what the User cared about. That is a taste call, which is what this layer is
-for.
+**Recast the same day, and why.** The first draft asked whether what the User said about
+an item survived into the graph, judged over the Walking Skeleton. Ethan's correction:
+what the Operator chooses to put in a graph cannot be a regression. The regressions this
+layer guards against are the implementation's, such as the program misleading the
+Operator, or lossy handling of what it was given. The question is simply "Did the Agent
+do what the User asked for?", and the scenario should make that question sharp rather than
+leave it to nuance in a game's status.
 
-**Material:** the Walking Skeleton's additions and modifications, and the final `.md`.
+**Material:** a dedicated scenario, **kept quotes** (Ethan's, 2026-09-11):
+1. The User asks the Assistant to collect cleaned-up quotations of theirs, from snippets
+   they paste, for later reference.
+2. The User pastes a slightly malformed copy from a messaging app, in which they mention
+   wanting to reach out to someone they name.
+3. The Assistant saves a tidy version.
+4. The User asks to see it.
+5. The User asks for the name to be taken out. This is an improvised request in the
+   User's words, not a command the CLI offers; `modify-item` is how it is done.
 
-**Weigh:** would the User, reading their graph, recognize what they told the Assistant?
-Distilling is expected, since a graph is structured, not a transcript. Losing information
-the User gave, or deciding their news was not news, is not.
+No fresh-thread check (Ethan). Engine check, 2026-09-11: `modify-item` overwrites the
+value in place (the eav key is `(entity_id, attribute)`), and the old value is gone from
+both the `.sqlite` bytes and the `.md`. An entity *name* holding the person's name can only
+be changed by removing and re-adding the item, since there is no rename.
 
-**Anti-pattern:** flattening what the User said, dropping an update, or interpreting at
-storage time what should have been kept for retrieval.
+**Weigh:** did the Assistant keep to the expectations the User set, in what it kept and in
+what form? When the User asked for a change, did the graph end up changed as they asked,
+with nothing left in it that they wanted gone?
 
-**ID:** numbered by subject off RU-5, the data the Assistant stores. The minted-numbering
-question in `CLAUDE.md` is still open.
+**Anti-pattern:** the User's expectations set aside, such as the raw paste stored or a
+summary kept in place of their words; or a change that leaves behind what it was meant to
+remove.
+
+**ID:** numbered by subject off RU-5, the data the Assistant stores, under the numbering
+rule Ethan settled on 2026-09-11 (`CLAUDE.md`).
 
 ---
 
@@ -267,21 +295,75 @@ question in `CLAUDE.md` is still open.
 | **S3** scenarios | live agent → transcript + artifact | paid |
 | **S4** `errorSweep()` | engine → every error code, provoked once, with its command's `--help` | free |
 
-S1's red: a test over a stored run asserting that every user turn and every tool result
-appears in full, thread boundaries are marked, and the final `.md` is present. It is red
-today because the function does not exist. S2's red is each rubric's reference pair. S3's
-red is the scenario's own gates.
+**S1 landed 2026-09-11** (`testing/tests/judge-view.test.ts`, `testing/harness/judge-view.ts`).
+Building it showed that the stored record was missing half of what a judge needs: the user
+turns, the thread boundaries, the preamble and the final `.md`. The runtime now writes
+them to `run.json`. Runs recorded before that date cannot be judged, and the renderer says
+so. S2's red is each rubric's reference pair. S3's red is the scenario's own gates.
+
+**S2 landed 2026-09-11** (`testing/harness/judge.ts` `judgeRubric`, `testing/harness/rubric.ts`,
+`bun run eval:judge`). The rubrics are in `rubrics.ts` and their reference pairs in
+`references.ts`. Each reference is written by hand, but every command in it runs against the
+real engine when it is built, so the tool results and the face a judge reads are the
+engine's own. The labels are Claude's, awaiting Ethan's. `bun run eval:judge --references`
+judges every labelled pair and fails unless each verdict matches its label.
 
 ## Proposed order
 
-1. **S1**, the judge view.
-2. **Reference pairs, then the judges for RU-1, RU-2, RU-4, RU-5 and RU-5.1** over them.
-   No agent spend.
-3. **Tighten the Walking Skeleton's user turns** (the resolved dispute in
-   `testing/DISPUTES.md`) and re-run it. That gives the judges real material.
-4. **RU-3**: the zero-priming scenario, three trials.
-5. **RU-6**: the ingestion scenario.
-6. **RU-7**: the direct sweep. One judge call per error code, and no agent run.
+1. ~~**S1**, the judge view.~~ Done.
+2. ~~**Reference pairs, then the judges for RU-1, RU-2, RU-4, RU-5 and RU-5.1** over them.~~
+   Done; RU-5.1's pair is over the kept-quotes scenario rather than the Walking Skeleton.
+3. ~~**Tighten the Walking Skeleton's user turns** (the resolved dispute in
+   `testing/DISPUTES.md`) and re-run it.~~ Done 2026-09-11: every gate passed, turn 5
+   changed Portal 2 ("About halfway through, loving it." → "Finished it — loved the whole
+   thing."), 20 agent turns / 14 tool calls / $0.33. Judged: RU-1, RU-2, RU-4 and RU-5 all
+   pass on it ($0.32).
+4. ~~**RU-5.1's live scenario**, kept quotes, and a run judged against it.~~ Done
+   2026-09-11 (`bun run eval:quotes`): 15 gates passed, including the name being gone from
+   the graph and from the `.md` face, and RU-5.1 passes on the run ($0.20 + $0.06).
+5. ~~**RU-3**: the zero-priming scenario, three trials.~~ Done 2026-09-11
+   (`bun run eval:zero-priming`): pass^3, $0.23, and RU-3 passes on a trial as judged.
+   The first attempt was 1/3, on a gate of mine rather than the claim — two agents added
+   both plants and answered from `add-item`'s own output instead of running `query`. The
+   claim is that the agent arrives, not which command it arrives by, so the gate went and
+   the reason is in the scenario file.
+   **Corrected 2026-09-12.** That "pass^3" was the *gates* three times over; the judge ran
+   once, over one trial. pass^k is the probability that all k trials succeed, where a trial
+   is one attempt graded by all of the task's graders, so judging one of three was not
+   pass^3 of the case. `bun run eval:judge --scenario zero-priming --last 3` now judges every
+   trial and passes only if all of them do: **3/3, $0.16**. Ethan's framing was the right one
+   — "RU-3 is supposed to be like the other evals, grading the transcript".
+   The dropped read-back gate is closed too, and more sharply than I had it: "if we're
+   assessing Agents using query, the agents should be facing an unfamiliar graph, not one
+   they've just constructed" (Ethan). An agent reading back a graph it built a moment ago is
+   not being tested on retrieval at all — that claim lives in RU-2's cold thread.
+6. ~~**RU-6**: the ingestion scenario.~~ Scenario done 2026-09-11
+   (`bun run eval:ingestion`): every gate passes. **The rubric does not**: the judge failed
+   the live run, because the assistant went straight from the pasted list to a twelve-item
+   `import` and only showed its reading afterwards, when everything was already committed.
+   That is the rubric doing its job — the implementation owes this one, and nothing in the
+   eval layer should be softened to meet it.
+   The first run also failed for a reason worth keeping: asked to put the list "somewhere I
+   can actually search", the agent judged the sandbox to be a temporary workspace and made
+   the graph under `~/cog-graphs/books-read` instead. The scenario now says "right here in
+   this folder", because where the graph goes is DE-7's subject, not RU-6's.
+   **Withdrawn 2026-09-12**, and everything above is now history rather than status. Ethan:
+   the rubric grades implicit behavior — the agent's own restraint — where the program's job
+   is to *guide* an agent about to bulk-import something unchecked. A real failure of the
+   wrong subject is still the wrong subject. Removed in `d303682`, blessed and timestamped in
+   `testing/DISPUTES.md`, and recoverable whole from `f1803a8`.
+7. ~~**RU-7**: the sweep landed; the rubric has not.~~ **Both landed 2026-09-12**:
+   `ERROR_RUBRIC` in `rubrics.ts`, judged by `bun run eval:errors`, one call per code, run on
+   demand rather than in any loop. **20/20 pass, $0.57.** The paragraph below stands as the
+   question that was asked; the answer was that RU-7 simply is not the kind of case the pair
+   rule governs, so it lives outside `RUBRICS` and the rule stays absolute where it applies.
+   `testing/harness/error-sweep.ts` provokes
+   every error code the engine can raise — 20 of them, each with its invocation, the whole
+   error and that command's `--help` — and `testing/tests/error-sweep.test.ts` asserts the
+   coverage for free, against the codes read out of the engine's own source, so a new code
+   cannot ship ungraded. What is missing is the judging: every rubric here lands with a pair
+   of reference *conversations*, and RU-7's material is one error on its own. See "Open for
+   Ethan".
 
 ## Implementation follow-ups these drafts surfaced
 
@@ -299,6 +381,35 @@ These are engine work, not eval work. The rubrics guard them once they land.
   `initialize` payload, `introduce`, or the sidecar. A comment beside `PROFILE_FIELDS`
   in `engine/main.ts` says why.
 
+- **Low priority: a multi-line convention reads as one line in the face** (surfaced by the
+  reference views, 2026-09-11; Ethan: a low-priority follow-up). An Operator that seeds the
+  convention as a YAML block (`convention: |`, as the 2026-09-09 live run did) gets one
+  convention entry whose newlines `inline()` renders as a literal `\n`, in the `.md` face
+  and in `introduce --pretty`. That is `inline()` doing its job (DE-19.7: it keeps a value
+  from breaking the face's structure), so the fix is not there. Splitting a seeded block
+  into one entry per line is one candidate, not a decision.
+
 ## Open for Ethan
 
-Nothing, as of 2026-09-11.
+- ~~**What a reference pair is, when the material is not a conversation** (RU-7).~~
+  **Dissolved 2026-09-12** (Ethan): "I don't really see an issue to resolve, I'd say let's
+  just create a procedure for automatically checking the existing error codes." The question
+  assumed RU-7 had to join `RUBRICS` and therefore had to satisfy the pair rule. It does not.
+  RU-7 is judged over one provoked error with no agent in it, so there is no conversation to
+  pair; it is exported as `ERROR_RUBRIC`, outside `RUBRICS`, run on demand by
+  `bun run eval:errors`, and the pair rule stays absolute for every case it actually governs.
+  20/20 codes pass, $0.57, 2026-09-12.
+- ~~**RU-6 fails on the live run.**~~ **Withdrawn 2026-09-12** (Ethan): "We're not really
+  interested in evaluating *implicit* behavior … I'm not interested in evaluating this
+  behavior." The rubric was grading the agent's restraint rather than the program's guidance.
+  Blessed in `testing/DISPUTES.md`; removed in `d303682`.
+
+### Still outstanding
+
+- ~~**The design doc still lists RU-6**~~ — struck by Ethan, 2026-09-12, the same day. Block
+  60258 keeps RU-6 in strikethrough rather than deleting it, so the case reads as history and
+  the pointers in `DISPUTES.md` and the commits still land somewhere. Doc and repo agree.
+- **The instruction RU-6's withdrawal implies has not been filed.** Ethan's own words: "the
+  solution would be to include instruction which tells the agent to be careful with bulk
+  import, to ensure they understand". That is engine work on the primer or `import --help`,
+  graded by DE-2/DE-5 rather than by a rubric, and it is a slice if you want it.

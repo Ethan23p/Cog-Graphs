@@ -37,7 +37,7 @@ The design doc sorts v0.3.1 test cases into IN / DE / RU / JU. Three have a home
 |---|---|
 | **IN** — invariants | `testing/tests/` (bun, deterministic, no API spend) |
 | **DE** — code/deterministic | `testing/tests/` + per-turn `gate()` callbacks in evals |
-| **RU** — AI w/ rubric | the `grade()` slot + `judge()` helper (structured verdicts) |
+| **RU** — AI w/ rubric | offline, over the stored record: `renderJudgeView` + one judge call per rubric (see *Gates read the live run; judges read the stored record*) |
 | **JU** — Ethan's judgement | not automatable — the Polish Phase manual pass |
 
 ## Runtime API (contract for eval definitions)
@@ -269,6 +269,217 @@ how this fails silently, on one platform, in the middle of a paid run.
 `cog-graphs introduce` returns a non-zero exit and the convention assertion fails for a
 reason that has nothing to do with the convention.
 
+### Gates read the live run; judges read the stored record
+
+The two graders get their evidence from different places, and the difference is the whole
+reason `run.json` exists.
+
+- **Gates** run inside the run, between turns. They see `ctx.lastTurn`, which is parsed live
+  and includes the user's text. They also see the `.sqlite` through `sandboxPath` and the
+  CLI's real exit codes through `exec`. They never read the artifacts.
+- **RU judges** run offline, after the run, from the artifact directory alone. That way a
+  rubric can be re-judged or iterated without paying for another agent run. Each judge is
+  still a live model call; "offline" means detached from the scenario, not model-free.
+
+Until 2026-09-11 nothing read a run after it ended, so nothing noticed that the stored record
+was incomplete:
+- **The user turns were missing.** They go into the session as input and are never echoed
+  back as SDK messages, so `transcript.json` held none of them.
+- **Fresh threads were unmarked.** The SDK emits `system/init` on every turn, not only on a
+  new session, so the transcript cannot mark where a thread began.
+- **The graph's face was never copied out of the sandbox.**
+- **Tool results were truncated.** `transcript.md` cuts every one to 300 characters.
+
+`writeRunRecord` in `report.ts` now writes `run.json` beside the transcript. It holds the
+preamble, every user turn with its `freshThread` flag, and every graph's `.md` face. It is
+written at the start, after every turn and at the end, so a killed run still leaves one.
+`renderJudgeView` in `judge-view.ts` joins the two files into the text a judge reads:
+- **Kept:** the conversation as it happened, every tool result verbatim.
+- **Left out:** bookkeeping and thinking.
+
+A run recorded before `run.json` existed is refused with a message rather than rendered
+without its user turns.
+
+The `grade()` slot on `ScenarioDefinition` has the same blind spot: it is handed
+`transcript.messages`, which has no user turns. No scenario uses it, and RU judging
+goes through the stored record instead.
+
+*Probes* (S1, `testing/tests/judge-view.test.ts`, run 2026-09-11; each reds exactly one of
+its four cases):
+- cut tool results to 300 characters in `renderJudgeView` → "appears in full" goes red;
+- drop the `THREAD_MARK` push → "a fresh thread is marked" goes red;
+- write `faces: {}` in `writeRunRecord` → "the graph's face" goes red;
+- render the `result` message's text → "bookkeeping stays out" goes red.
+
+A file the agent wrote reaches the judge as it reads: a `Write` call renders as its path and
+its content, fenced, rather than as JSON whose newlines are `\n` escapes. The judges had been
+decoding those escapes themselves, and a judge quoting a profile back quoted text the view
+never showed. *Probe:* disable the `Write` branch in `renderJudgeView` → "a written file
+reaches the judge as it reads" goes red (run 2026-09-11).
+
+### How an RU judge answers
+
+`judgeRubric` (`judge.ts`) sends one rubric and one rendered view to `claude-sonnet-5` and
+reads back a `Judgment`: `verdict`, `harness_issue`, `quotes`, `rationale`. The words it is
+given are `JUDGE_INSTRUCTIONS` and `rubricPrompt` in `rubric.ts`, which is SDK-free so both
+can be read and tested without a paid call. `bun run eval:judge` drives it; each judge's
+whole session is written to `judges/<RU>__<conversation>.json` beside the verdicts, so a
+surprising verdict or a failed call can be read at its source.
+
+**The SDK's structured output is a tool, not constrained decoding.** `outputFormat` adds a
+`StructuredOutput` tool; the model calls it, the SDK validates the arguments against the
+schema and re-prompts on a mismatch, and after five failed attempts ends with
+`error_max_structured_output_retries`. The docs add that a `success` can arrive with no
+`structured_output`. So:
+- **Only a `success` carrying a well-formed judgment is a verdict** (`readJudgeResult`).
+  Anything else is an error, reported apart from `fail` and `unknown`. In the first
+  calibration a judge that had run out of patience submitted a placeholder that validated,
+  and it was scored as a pass. *Probe:* skip the subtype check in `readJudgeResult` → "anything
+  else is an error, never a verdict" in `testing/tests/judgment.test.ts` goes red (run
+  2026-09-11).
+- **`maxTurns` is 6.** Every retry is a turn. At 2, 9 of 10 calibration calls ended
+  `error_max_turns` (2026-09-11). At 6, the SDK's own limit of five attempts is the one that
+  ends a failing judge. *Probe (paid, reasoned):* set it to 2 and run
+  `bun run eval:judge --references`; expect `error_max_turns` on any call that retried.
+- **`eval:judge` flags a judgment that took more than one attempt.** It still counts, and
+  it is worth reading.
+
+**No `systemPrompt`.** The docs' prescription for "a thin tool-calling loop with no agent
+persona, where you supply all behavior in the user prompt" is to leave it unset, which keeps
+the SDK's minimal default and its tool-calling guidance; a custom string replaces that
+guidance. An A/B on 2026-09-11 showed no measurable difference between the two at six calls
+each, so this is the docs' call, adopted as such, not a measured one.
+
+**The answer's format was measured, 2026-09-11.** Each fix below is a response to a failure
+read in the judge's own session, not a guess:
+
+| Prompt and schema | Where | First attempt valid | Verdicts |
+|---|---|---|---|
+| prose field `reasoning`, first | early calibration | every lost field boundary (23 of 23) began with the judge closing the field as `</reasoning>` | several `error_max_structured_output_retries`, and one placeholder pass |
+| `rationale`, first; JSON example in the prompt | 18 calls | 15 of 18 | 18 of 18 |
+| same | calibration, 10 calls | 9 of 10 | 9; RU-4 × walking-skeleton ran out of retries, all 5 attempts swallowing a field after `</rationale>` |
+| `rationale` last; JSON example | RU-4 × walking-skeleton, ×6 | 1 of 6: the judge passed the example whole as one argument, or filled in the tool-call placeholders `$PARAMETER_NAME` / `$PARAMETER_VALUE` | 6 of 6 |
+| `rationale` last; fields named in prose, no example | RU-4 × walking-skeleton, ×6 | 5 of 6 | 6 of 6 |
+| same (**adopted**) | calibration, 10 calls | 5 of 10: four swallowed `verdict` after `</rationale>`, one began the arguments as JSON text and switched format mid-way | 10 of 10, every label matched |
+
+What that settled, and what it did not:
+- **The judge often closes its long prose field with a tag named after the field**
+  (`</rationale>`) instead of ending the argument, and whatever field it writes next is
+  swallowed into the string. It is not rare: 7 of the adopted format's 10 calibration calls
+  did it at least once. The judge's thinking comes back empty in the stored messages, so why
+  is not known.
+- **`rationale` is last, which contains the damage only when the judge keeps the order.**
+  When it does, the stray `</rationale>` (often with `</invoke>`) stays in the rationale's
+  tail and the other three fields are intact. But the order in which arguments are written is
+  the model's, and in 5 of those 10 calls it wrote `verdict` last anyway; then the verdict is
+  swallowed, validation fails, and the SDK's retry recovers it. The tail is left as the judge
+  wrote it rather than stripped: reading the judge's words back is not something to do by
+  pattern-matching them.
+- **The prompt names the fields and gives no example.** That is the docs' own shape: a clear
+  prompt and a focused schema. Given a JSON example, the judge copied it.
+- **The retry is the mechanism, and it holds.** Under the adopted format, 16 of 16 calls ended
+  in a genuine verdict (one error in 10 under the format before it). A retried judgment is the
+  same judgment re-submitted whole; `eval:judge` flags it so it can be read.
+- **The judge thinks before it calls the tool**, so the verdict coming first in the answer is
+  not the verdict being decided first.
+- **Not tried:** a prose field name less common as a tag in prompts than `reasoning` or
+  `rationale`, or carrying the rationale as an array of paragraphs, since the `quotes` array
+  was never mis-closed. Either is the next experiment if retries become a cost worth paying
+  down.
+
+*Probe (paid):* `bun run eval:judge --references`; every label must match, and on the
+reference set as it stood on 2026-09-11 it did, 10 of 10. For the order: put `rationale`
+first in `JUDGMENT_SCHEMA` and in `JUDGE_INSTRUCTIONS` and judge RU-4 a few times
+(`bun run eval:judge --references RU-4`); expect first attempts missing a field and, on the
+walking-skeleton reference, a call that runs out of retries (1 of 1 did on 2026-09-11).
+
+**`harness_issue` is the judge's channel to us** (Ethan, 2026-09-11): null, unless the rubric
+or the conversation looks broken. `eval:judge` prints it in full. It is how a judge says
+"this test is broken" instead of being forced to pick a verdict over bad material.
+
+**Reference conversations are real where it matters.** `buildReference` (`reference.ts`)
+takes a hand-written conversation and runs every `cog-graphs` command in it against the
+engine, in a sandbox under `~/cog-graph-workspaces/`, so the tool results and the final face
+the judge reads are the engine's own, and a reference that stops matching the engine throws
+rather than drifting. *Probe:* change an `add-item` in `testing/rubrics/references.ts` to an
+entity that already exists → "every reference builds against the real engine" in
+`testing/tests/references.test.ts` goes red (reasoned: the builder throws on an unexpected exit).
+
+### The error sweep (S4)
+
+`error-sweep.ts` provokes every error code the engine can raise, once each, by direct
+invocation — no agent, because RU-7's claim is about the text of an error and putting an
+agent in front of it would grade the agent. Each entry carries what an Operator meeting that
+error would have: the command, the whole of stderr, and that command's `--help`.
+
+- **Coverage is derived, not remembered.** `testing/tests/error-sweep.test.ts` reads the codes
+  out of `engine/main.ts` (every `fail(EXIT.…, "code")`) and requires an entry for each, so a
+  code added to the engine cannot ship ungraded. A code with no provocation is allowed only
+  where `unreachableCodes()` says so and says why — today that is `not_implemented`, which
+  nothing can provoke while every documented command is built, asked of the CLI rather than
+  remembered as a literal (the DE-19.3 precedent). *Probe:* delete any provocation from
+  `PROVOCATIONS` → "every error code the engine can raise is provoked once, or declared
+  unreachable" goes red. Break the regex that reads the engine → "the engine's codes are found
+  in its source at all" goes red, which is the guard against the whole file going vacuous.
+- **Each entry is checked to have actually provoked its code**, with a non-zero exit and a
+  non-empty `next_step`. That is what caught three provocations that did not fail at all when
+  the sweep was first run (2026-09-11): a namespace with a space in it is legal, one missing
+  directory level is created for you with a warning rather than refused (DE-7.1), and a
+  read-only sidecar is a warning and not a failure.
+- **Warnings are out of scope, for now.** `sidecar_unwritable`, `created_directory` and
+  `temp_directory` carry the same `code`/`message`/`next_step` shape but ride in a successful
+  payload. The sweep covers `fail` only, which is also exactly what the coverage test derives.
+
+### RU-7 is judged on demand, and is not in `RUBRICS`
+
+`bun run eval:errors` judges the sweep: one `claude-sonnet-5` call per error code, each shown
+one error alone — the command, the whole of stderr, and that command's `--help`, and not the
+setup that provoked it, because an Operator meeting the error would not have that either.
+
+- **It is manually invoked** (Ethan, 2026-09-12: "This procedure can be manually kicked-off
+  after major updates to code or something"). It is deliberately absent from `bun run check`
+  and from every loop. What runs constantly is the free coverage test above, which already
+  fails the moment a code ships without a provocation. *Probe:* there is nothing to break —
+  the claim is an absence, and `grep -r "eval:errors" package.json testing/tests` finding it
+  in a test or in `check` is the falsification.
+- **One call per code, not one call for the batch**, so a weak `next_step` cannot hide beside
+  nineteen strong ones and every verdict is attributable. 20 codes cost $0.5728 on 2026-09-12.
+- **`ERROR_RUBRIC` is exported from `rubrics.ts` and is deliberately not in `RUBRICS`.** That
+  is not an exception to the reference-pair rule; it is RU-7 not being the kind of case the
+  rule is about. Everything in `RUBRICS` is judged over a conversation and calibrated by a
+  pair of them, and `references.test.ts` enforces that over exactly that list. RU-7 is judged
+  over one provoked error with no agent in it, so there is no conversation to pair. *Probe,
+  run 2026-09-12:* `RUBRICS.push(ERROR_RUBRIC)` → "every rubric has a plainly passing and a
+  plainly failing reference" goes red, expecting `["fail", "pass"]` for RU-7 and finding `[]`.
+  That is the rule declining to be bent rather than a bug, and it is why RU-7 living outside
+  the list is a statement about RU-7 and not a hole in the enforcement.
+- **Measured, 2026-09-12:** 20/20 codes pass, $0.5728, 5 of the 20 needing a second structured
+  output attempt — the same rate the RU judges show. The two strings predicted to be arguable
+  (`missing_option`, which redirects to `--help` rather than naming the missing option, and
+  `profile_unparseable`'s "Fix the YAML") were both judged actionable.
+
+### A script's body runs on import, and that can cost money
+
+`renderErrorView` lives in `error-sweep.ts`, not in `eval-errors.ts`, because the latter is a
+script: importing it to render one view executed the whole paid sweep. That is not a
+hypothetical — it happened on 2026-09-12 and cost $0.57, arriving as the "paid run used to
+check progress" anti-pattern through a side door. Anything a test or a console one-liner might
+reasonably want to import belongs in a module with no top-level effects. *Probe:* move it back
+into `eval-errors.ts` and import it from a one-liner → the sweep runs and bills.
+
+### pass^k grades every trial with every grader
+
+`bun run eval:judge --scenario <name> --last <k>` judges the k most recent stored runs of a
+scenario and passes only if every one passes. It exists because RU-3 is scored pass^k, k=3, and
+until 2026-09-12 only its deterministic gates ran three times while the judge ran once — so the
+thing scored pass^3 was the gates, not the case. A trial is one attempt graded by *all* of a
+task's graders, and pass^k is the probability that all k succeed (Anthropic, *Demystifying evals
+for AI agents*, 2026-01-09). The scenario is read from each run's `run.json` rather than from the
+directory name, so a renamed directory cannot silently enter or leave a batch, and asking for
+more trials than exist is an error rather than a quiet pass over fewer. *Probe:* ask for
+`--last 99` of any scenario → it exits 1 naming how many runs exist, rather than judging what it
+found. **Measured 2026-09-12:** zero-priming 3/3 judged pass, $0.1562.
+
 ## File layout
 
 ```
@@ -277,8 +488,14 @@ testing/harness/
   runtime.ts         # runScenario + session driver (ALL SDK imports live here)
   types.ts           # ScenarioDefinition, TurnDef, GateContext, ScenarioResult, Stats
   transcript.ts      # message capture, parsing into per-turn views, md rendering
-  report.ts          # artifacts dir, summary, console output
-  judge.ts           # optional LLM-as-judge helper (outputFormat json_schema)
+  report.ts          # artifacts dir, summary, run.json (writeRunRecord), console output
+  judge-view.ts      # renderJudgeView: a stored run → the text an RU judge reads (SDK-free)
+  judge.ts           # judgeRubric (the RU judge) and the generic judge() slot; outputFormat json_schema
+  rubric.ts          # Rubric and Judgment shapes, JUDGE_INSTRUCTIONS, rubricPrompt, readJudgeResult (SDK-free)
+  reference.ts       # buildReference: a hand-written conversation, run against the real engine
+  eval-judge.ts      # bun run eval:judge: the reference pairs, a stored run, or a scenario's k trials (pass^k)
+  error-sweep.ts     # errorSweep: every error code provoked once, with its command's --help (S4); renderErrorView
+  eval-errors.ts     # bun run eval:errors: RU-7 over the sweep, one judge call per code, manually invoked
   verify-claims.ts   # offline re-verification of E1–E4 against a transcript
 testing/evals/       # agentic scenarios (RU + cross-cutting DE)
   eval_smoke.ts      # trivial scenario proving the loop (no Cog-Graphs CLI needed)

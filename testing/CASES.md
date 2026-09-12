@@ -118,13 +118,27 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - **RU-1** The Assistant establishes the profile configuration *conversationally* with the User rather than inventing it.
 - **RU-2** The cold thread orients itself and reaches the right items using only the CWD and the tooling.
 - **RU-3** Zero-priming fluency: an agent given only the binary name and a goal — no skill, no primer — reaches a working graph. **Scored pass^k, k=3.**
+  - Scenario: `testing/evals/eval_zero_priming.ts` (`bun run eval:zero-priming`), three
+    trials over houseplants — a domain no `--help` example uses. Passed 3/3 on 2026-09-11.
+  - pass^k means every trial graded by every grader, so the judge runs on all three:
+    `bun run eval:judge --scenario zero-priming --last 3`. 3/3 judged pass, 2026-09-12.
+    Before that date only the gates ran three times, which scored the gates and not the case.
   - This is the one case whose whole claim is reliability, so pass^k. The other rubric cases stay at pass@1.
 - **RU-4** The Assistant does not over-explain the mechanics to the User.
   - Anchored: the judge is shown the user turns and asked whether any assistant message would require the User to learn a system abstraction in order to follow it.
 - **RU-5** The convention the Assistant seeds actually describes the data it is about to store: the attributes the convention names are the attributes it then uses.
-- **RU-6** Given unstructured source material, the Assistant does one ingestion to confirm its understanding, then bulk-ingests the rest.
+- ~~**RU-6** Given unstructured source material, the Assistant does one ingestion to confirm its understanding, then bulk-ingests the rest.~~ **Withdrawn 2026-09-12** (Ethan): the
+  program should guide an agent that is about to bulk-import, but the agent's own restraint
+  is implicit behavior and not what this suite grades. Blessed in `testing/DISPUTES.md`; the
+  rubric, its pair and the ingestion scenario are in the history at f1803a8. Struck in the
+  design doc the same day (block 60258, kept in strikethrough), so doc and repo agree.
 - **RU-7** The `next_step` carried by an error is actionable — it names a command or a concrete next move, not a restatement of the failure.
   - IN-11 asserts the field is present and non-empty; this asserts it is worth reading.
+  - Judged over the error sweep by `bun run eval:errors`, one call per code, **manually
+    invoked** after a change to the engine's errors rather than in any loop (Ethan,
+    2026-09-12). 20/20 pass, $0.57, 2026-09-12. `ERROR_RUBRIC` sits outside `RUBRICS` on
+    purpose: its material is one error, not a conversation, so the reference-pair rule that
+    governs every conversational rubric does not apply to it.
 
 ## JU — Ethan's judgement
 
@@ -252,8 +266,20 @@ question either way.
     its `--help`. Added as insertions to a frozen file (two rows, two expected-code
     entries, and a second `import` statement rather than an edit to the first, since an
     edited line is a removed line). Sub-numbered off IN-10 under the subject-based rule.
-- **RU-5.1** What the User tells the Assistant about an item reaches the graph with its
-  meaning intact, including what is new when they update it. *(AI with rubric.)*
+- **RU-5.1** The Assistant keeps what the User gives the graph in the way the User asked it
+  to be kept, and changes an entry faithfully when the User asks it to. *(AI with rubric,
+  over the kept-quotes scenario.)*
+  - Its scenario is `testing/evals/eval_kept_quotes.ts` (`bun run eval:quotes`), whose
+    gates settle the one thing a gate can: after the User asks for the name to be taken
+    out, it is in no entity name, attribute, value, or `.md` face. The taste calls are the
+    judge's, over the same run.
+  - Recast 2026-09-11 by Ethan. The first wording, below, judged whether the Operator's
+    storage choices kept the User's meaning; but what the Operator chooses cannot be a
+    regression, and the question is "Did the Agent do what the User asked for?" The
+    scenario, Ethan's: the User collects tidied quotations of their own from pasted
+    snippets, one names a person, and they later ask for the name to be taken out.
+  - First wording: what the User tells the Assistant about an item reaches the graph with
+    its meaning intact, including what is new when they update it.
   - Found while drafting the rubric layer (2026-09-10) and minted by Ethan 2026-09-11.
     DE-23 guards fidelity at the CLI, where strings round-trip, and RU-5 asks whether the
     convention describes the stored data. Nothing asked whether the stored data
