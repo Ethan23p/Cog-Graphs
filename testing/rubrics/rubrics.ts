@@ -142,3 +142,47 @@ export const RUBRICS: Rubric[] = [
 // The sweep that provokes the errors exists and is green (testing/harness/error-sweep.ts,
 // testing/tests/error-sweep.test.ts); what is missing is the shape a reference pair takes
 // when the material is not a conversation. That is a design call, and it is the next slice.
+
+// Settled 2026-09-12 (Ethan), and the comment above stands as the question that was asked:
+// "I don't really see an issue to resolve, I'd say let's just create a procedure for
+// automatically checking the existing error codes, which I think is the 'sweep' you've
+// already implemented. This procedure can be manually kicked-off after major updates to
+// code or something."
+//
+// So RU-7 needs no reference pair, and it is deliberately NOT in RUBRICS above. That is not
+// an exception carved into the pair rule — it is RU-7 declining to be the kind of thing the
+// rule is about. Everything in RUBRICS is judged over a conversation and is calibrated by a
+// pair of them, and testing/tests/references.test.ts enforces exactly that over exactly that
+// list. RU-7 is judged over one provoked error with no agent in it at all, so there is no
+// conversation to calibrate against and nothing for that test to say. Keeping it out of the
+// list is what lets the rule stay absolute for everything the rule applies to.
+//
+// It runs on demand rather than with the others: `bun run eval:errors`, after a change to
+// the engine's errors. Its calibration is the sweep's own free test (every code provoked, or
+// declared unreachable with a reason) plus a human reading of the material — Ethan, same
+// day: "you reviewing these even just once is basically the spirit of the eval, we good."
+export const ERROR_RUBRIC: Rubric = {
+  id: "RU-7",
+  claim:
+    "The `next_step` carried by an error is actionable: it names a command or a concrete next move, rather than " +
+    "restating the failure.",
+  intent:
+    "Errors are to be \"AI legible … errors detail next steps / possible issues\", and the program \"returns " +
+    "intuitive, rich feedback in all cases which suggests next steps when relevant\". The user of this program is " +
+    "an AI agent, and an error it cannot act on costs it a turn — it has to go and find out what to do next, " +
+    "which is the thing the error was supposed to tell it.",
+  note:
+    "There is no conversation here and no agent was involved. You are shown one error exactly as it was provoked, " +
+    "which is how an Operator meets it: the command, everything the program wrote, and that command's `--help`. " +
+    "Judge this error alone. The setup that made it fail is deliberately not shown, because an Operator meeting " +
+    "it would not have that either.",
+  material:
+    "One provoked error: the invocation, the whole of the program's output, and the `--help` of the command that " +
+    "failed.",
+  weigh:
+    "Given only what is in front of you, could an Operator act on the `next_step`? Naming the fix outright is the " +
+    "best case, and pointing precisely at where to find it is also a move. Consider what the rest of the error " +
+    "already says — a `next_step` need not repeat the diagnosis, it has to say what to do about it.",
+  antiPattern: "A `next_step` that restates the failure in other words, or that points nowhere in particular.",
+  scenarios: ["error-sweep"],
+};

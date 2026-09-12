@@ -261,6 +261,45 @@ export function unreachableCodes(): Record<string, string> {
   return out;
 }
 
+/**
+ * One error as RU-7's judge reads it: the three things an Operator has, in the order they
+ * meet them, and nothing of ours around them. The setup that made the command fail is
+ * deliberately absent, because an Operator meeting the error would not have it either.
+ *
+ * It lives here, beside SweepEntry, rather than in eval-errors.ts, because that file is a
+ * script: its body runs on import, so importing it to render one view spends money. That is
+ * not hypothetical — it happened on 2026-09-12 and cost $0.57.
+ */
+export function renderErrorView(entry: SweepEntry): string {
+  return [
+    `# One error from cog-graphs`,
+    ``,
+    `An Operator ran a command and it failed. Below is everything they have: what they ran,`,
+    `what the program wrote, and the \`--help\` of the command that failed.`,
+    ``,
+    `## What was run`,
+    ``,
+    "```",
+    entry.command,
+    "```",
+    ``,
+    `It exited with status ${entry.exitCode}.`,
+    ``,
+    `## What the program wrote`,
+    ``,
+    "```json",
+    entry.error,
+    "```",
+    ``,
+    `## \`--help\` for that command`,
+    ``,
+    "```json",
+    entry.help,
+    "```",
+    ``,
+  ].join("\n");
+}
+
 let cached: SweepEntry[] | undefined;
 
 /**

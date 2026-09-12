@@ -120,6 +120,9 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - **RU-3** Zero-priming fluency: an agent given only the binary name and a goal — no skill, no primer — reaches a working graph. **Scored pass^k, k=3.**
   - Scenario: `testing/evals/eval_zero_priming.ts` (`bun run eval:zero-priming`), three
     trials over houseplants — a domain no `--help` example uses. Passed 3/3 on 2026-09-11.
+  - pass^k means every trial graded by every grader, so the judge runs on all three:
+    `bun run eval:judge --scenario zero-priming --last 3`. 3/3 judged pass, 2026-09-12.
+    Before that date only the gates ran three times, which scored the gates and not the case.
   - This is the one case whose whole claim is reliability, so pass^k. The other rubric cases stay at pass@1.
 - **RU-4** The Assistant does not over-explain the mechanics to the User.
   - Anchored: the judge is shown the user turns and asked whether any assistant message would require the User to learn a system abstraction in order to follow it.
@@ -127,10 +130,15 @@ late-stage cleanup. And **the RU cases and DE-24 run through the eval harness**,
 - ~~**RU-6** Given unstructured source material, the Assistant does one ingestion to confirm its understanding, then bulk-ingests the rest.~~ **Withdrawn 2026-09-12** (Ethan): the
   program should guide an agent that is about to bulk-import, but the agent's own restraint
   is implicit behavior and not what this suite grades. Blessed in `testing/DISPUTES.md`; the
-  rubric, its pair and the ingestion scenario are in the history at f1803a8. Still present in
-  the design doc (block 60258), which is Ethan's to strike.
+  rubric, its pair and the ingestion scenario are in the history at f1803a8. Struck in the
+  design doc the same day (block 60258, kept in strikethrough), so doc and repo agree.
 - **RU-7** The `next_step` carried by an error is actionable — it names a command or a concrete next move, not a restatement of the failure.
   - IN-11 asserts the field is present and non-empty; this asserts it is worth reading.
+  - Judged over the error sweep by `bun run eval:errors`, one call per code, **manually
+    invoked** after a change to the engine's errors rather than in any loop (Ethan,
+    2026-09-12). 20/20 pass, $0.57, 2026-09-12. `ERROR_RUBRIC` sits outside `RUBRICS` on
+    purpose: its material is one error, not a conversation, so the reference-pair rule that
+    governs every conversational rubric does not apply to it.
 
 ## JU — Ethan's judgement
 

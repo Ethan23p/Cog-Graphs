@@ -218,9 +218,9 @@ _None._
   and the ingestion scenario. `eval:ingestion` is gone from `package.json`. A comment at the
   removal site in each frozen file points here and at f1803a8, where all of it still lives.
   The run artifacts are kept, as every run's are.
-- **Still open, and Ethan's**: the design doc is the authority for scope, and RU-6 is still
-  block 60258 on `Cog-Graphs: Test Inventory, Walking Skeleton`. Until that block is struck,
-  the doc and the repo disagree, and the doc wins. Proposed replacement text is in
-  `docs/SCRATCHPAD.md`.
+- **The doc, which is the authority for scope**: struck by Ethan the same day. Block 60258 on
+  `Cog-Graphs: Test Inventory, Walking Skeleton` now carries RU-6 in strikethrough rather than
+  deleted, so the case stays legible as history — which is the right shape, since this entry
+  and the commits point at it. Verified 2026-09-12. The doc and the repo agree.
 - **Resolution**: 2026-09-12, Ethan — removal blessed, landed in the same commit as this
-  entry. The doc edit is outstanding.
+  entry; the doc struck by Ethan directly. Closed.

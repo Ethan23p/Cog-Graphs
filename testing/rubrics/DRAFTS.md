@@ -1,12 +1,14 @@
 # The rubric layer (RU-1..RU-7): drafts for review
 
-> **Status**: third draft, 2026-09-11; RU-5.1 minted and RU-7 settled the same day, and
-> RU-5.1 recast around the kept-quotes scenario that evening. RU-1, RU-2, RU-4, RU-5 and
-> RU-5.1 are now implemented as rubrics (`rubrics.ts`) with hand-written reference pairs
-> (`references.ts`); RU-3, RU-6 and RU-7 are still drafts. The claims are the design doc's
-> (Technical Specification > Testing & Evaluation > RU), and the rest is proposal. Revised
-> after Ethan's notes of 2026-09-11: the judge gets more latitude, and the drafts are
-> anchored in the doc rather than in the runs we happen to have.
+> **Status**: landed, 2026-09-12. Every RU case in scope is implemented and green:
+> RU-1, RU-2, RU-4, RU-5 and RU-5.1 over the Walking Skeleton and kept-quotes, RU-3 at a
+> true pass^3 (every trial judged, not just gated), and RU-7 over the error sweep on
+> demand. **RU-6 was withdrawn** the same day — Ethan's scope call, blessed and timestamped
+> in `testing/DISPUTES.md`. This file is no longer a proposal; it is the record of how each
+> rubric came to be worded the way it is, and the earlier drafting is left standing on
+> purpose so the reasoning is legible. The claims are the design doc's (Technical
+> Specification > Testing & Evaluation > RU). One thing is outstanding and Ethan's: the doc
+> still lists RU-6.
 
 ## What these cases are for
 
@@ -193,7 +195,7 @@ once and then ignored.
 
 ---
 
-## RU-6: one ingestion to confirm, then bulk
+## RU-6: one ingestion to confirm, then bulk — WITHDRAWN 2026-09-12
 
 **Claim:** Given unstructured source material, the Assistant does one ingestion to
 confirm its understanding, then bulk-ingests the rest.
@@ -214,7 +216,7 @@ that was never checked.
 
 ---
 
-## RU-7: `next_step` is worth reading
+## RU-7: `next_step` is worth reading — LANDED 2026-09-12 (`bun run eval:errors`)
 
 **Claim:** The `next_step` carried by an error is actionable. It names a command or a
 concrete next move, not a restatement of the failure. (IN-11 asserts the field is present
@@ -325,6 +327,16 @@ judges every labelled pair and fails unless each verdict matches its label.
    both plants and answered from `add-item`'s own output instead of running `query`. The
    claim is that the agent arrives, not which command it arrives by, so the gate went and
    the reason is in the scenario file.
+   **Corrected 2026-09-12.** That "pass^3" was the *gates* three times over; the judge ran
+   once, over one trial. pass^k is the probability that all k trials succeed, where a trial
+   is one attempt graded by all of the task's graders, so judging one of three was not
+   pass^3 of the case. `bun run eval:judge --scenario zero-priming --last 3` now judges every
+   trial and passes only if all of them do: **3/3, $0.16**. Ethan's framing was the right one
+   — "RU-3 is supposed to be like the other evals, grading the transcript".
+   The dropped read-back gate is closed too, and more sharply than I had it: "if we're
+   assessing Agents using query, the agents should be facing an unfamiliar graph, not one
+   they've just constructed" (Ethan). An agent reading back a graph it built a moment ago is
+   not being tested on retrieval at all — that claim lives in RU-2's cold thread.
 6. ~~**RU-6**: the ingestion scenario.~~ Scenario done 2026-09-11
    (`bun run eval:ingestion`): every gate passes. **The rubric does not**: the judge failed
    the live run, because the assistant went straight from the pasted list to a twelve-item
@@ -335,7 +347,17 @@ judges every labelled pair and fails unless each verdict matches its label.
    can actually search", the agent judged the sandbox to be a temporary workspace and made
    the graph under `~/cog-graphs/books-read` instead. The scenario now says "right here in
    this folder", because where the graph goes is DE-7's subject, not RU-6's.
-7. **RU-7**: the sweep landed; the rubric has not. `testing/harness/error-sweep.ts` provokes
+   **Withdrawn 2026-09-12**, and everything above is now history rather than status. Ethan:
+   the rubric grades implicit behavior — the agent's own restraint — where the program's job
+   is to *guide* an agent about to bulk-import something unchecked. A real failure of the
+   wrong subject is still the wrong subject. Removed in `d303682`, blessed and timestamped in
+   `testing/DISPUTES.md`, and recoverable whole from `f1803a8`.
+7. ~~**RU-7**: the sweep landed; the rubric has not.~~ **Both landed 2026-09-12**:
+   `ERROR_RUBRIC` in `rubrics.ts`, judged by `bun run eval:errors`, one call per code, run on
+   demand rather than in any loop. **20/20 pass, $0.57.** The paragraph below stands as the
+   question that was asked; the answer was that RU-7 simply is not the kind of case the pair
+   rule governs, so it lives outside `RUBRICS` and the rule stays absolute where it applies.
+   `testing/harness/error-sweep.ts` provokes
    every error code the engine can raise — 20 of them, each with its invocation, the whole
    error and that command's `--help` — and `testing/tests/error-sweep.test.ts` asserts the
    coverage for free, against the codes read out of the engine's own source, so a new code
@@ -369,15 +391,25 @@ These are engine work, not eval work. The rubrics guard them once they land.
 
 ## Open for Ethan
 
-- **What a reference pair is, when the material is not a conversation** (RU-7). Every rubric
-  is calibrated against one conversation that plainly meets its claim and one that plainly
-  breaks it, and the free test enforces that. RU-7 is judged over a single provoked error —
-  the invocation, the error, the `--help` — so a pair for it would be two errors, one with a
-  `next_step` worth reading and one without. That needs either a second reference shape
-  beside `Reference`, or the judge for RU-7 being calibrated some other way. My inclination
-  is the second shape, since the sweep already produces exactly that material; I did not
-  build it unilaterally because the pair rule is what keeps a judge honest, and changing its
-  shape is the sort of call that should be yours. The sweep and its free coverage test are
-  landed and green in the meantime.
-- **RU-6 fails on the live run** (see step 6 of the order). Not a question so much as a
-  notice: the first rubric to name something the implementation owes.
+- ~~**What a reference pair is, when the material is not a conversation** (RU-7).~~
+  **Dissolved 2026-09-12** (Ethan): "I don't really see an issue to resolve, I'd say let's
+  just create a procedure for automatically checking the existing error codes." The question
+  assumed RU-7 had to join `RUBRICS` and therefore had to satisfy the pair rule. It does not.
+  RU-7 is judged over one provoked error with no agent in it, so there is no conversation to
+  pair; it is exported as `ERROR_RUBRIC`, outside `RUBRICS`, run on demand by
+  `bun run eval:errors`, and the pair rule stays absolute for every case it actually governs.
+  20/20 codes pass, $0.57, 2026-09-12.
+- ~~**RU-6 fails on the live run.**~~ **Withdrawn 2026-09-12** (Ethan): "We're not really
+  interested in evaluating *implicit* behavior … I'm not interested in evaluating this
+  behavior." The rubric was grading the agent's restraint rather than the program's guidance.
+  Blessed in `testing/DISPUTES.md`; removed in `d303682`.
+
+### Still outstanding
+
+- ~~**The design doc still lists RU-6**~~ — struck by Ethan, 2026-09-12, the same day. Block
+  60258 keeps RU-6 in strikethrough rather than deleting it, so the case reads as history and
+  the pointers in `DISPUTES.md` and the commits still land somewhere. Doc and repo agree.
+- **The instruction RU-6's withdrawal implies has not been filed.** Ethan's own words: "the
+  solution would be to include instruction which tells the agent to be careful with bulk
+  import, to ensure they understand". That is engine work on the primer or `import --help`,
+  graded by DE-2/DE-5 rather than by a rubric, and it is a slice if you want it.

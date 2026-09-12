@@ -13,6 +13,7 @@
     "eval:quotes": "bun run testing/evals/eval_kept_quotes.ts",
     "eval:zero-priming": "bun run testing/evals/eval_zero_priming.ts",
     "eval:judge": "bun run testing/harness/eval-judge.ts",
+    "eval:errors": "bun run testing/harness/eval-errors.ts",
     "verify:claims": "bun run testing/harness/verify-claims.ts",
     "typecheck": "tsc --noEmit"
   },

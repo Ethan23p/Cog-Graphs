@@ -430,6 +430,54 @@ error would have: the command, the whole of stderr, and that command's `--help`.
   `temp_directory` carry the same `code`/`message`/`next_step` shape but ride in a successful
   payload. The sweep covers `fail` only, which is also exactly what the coverage test derives.
 
+### RU-7 is judged on demand, and is not in `RUBRICS`
+
+`bun run eval:errors` judges the sweep: one `claude-sonnet-5` call per error code, each shown
+one error alone — the command, the whole of stderr, and that command's `--help`, and not the
+setup that provoked it, because an Operator meeting the error would not have that either.
+
+- **It is manually invoked** (Ethan, 2026-09-12: "This procedure can be manually kicked-off
+  after major updates to code or something"). It is deliberately absent from `bun run check`
+  and from every loop. What runs constantly is the free coverage test above, which already
+  fails the moment a code ships without a provocation. *Probe:* there is nothing to break —
+  the claim is an absence, and `grep -r "eval:errors" package.json testing/tests` finding it
+  in a test or in `check` is the falsification.
+- **One call per code, not one call for the batch**, so a weak `next_step` cannot hide beside
+  nineteen strong ones and every verdict is attributable. 20 codes cost $0.5728 on 2026-09-12.
+- **`ERROR_RUBRIC` is exported from `rubrics.ts` and is deliberately not in `RUBRICS`.** That
+  is not an exception to the reference-pair rule; it is RU-7 not being the kind of case the
+  rule is about. Everything in `RUBRICS` is judged over a conversation and calibrated by a
+  pair of them, and `references.test.ts` enforces that over exactly that list. RU-7 is judged
+  over one provoked error with no agent in it, so there is no conversation to pair. *Probe:*
+  add `ERROR_RUBRIC` to `RUBRICS` → "every rubric has a plainly passing and a plainly failing
+  reference" goes red, which is the rule declining to be bent rather than a bug.
+- **Measured, 2026-09-12:** 20/20 codes pass, $0.5728, 5 of the 20 needing a second structured
+  output attempt — the same rate the RU judges show. The two strings predicted to be arguable
+  (`missing_option`, which redirects to `--help` rather than naming the missing option, and
+  `profile_unparseable`'s "Fix the YAML") were both judged actionable.
+
+### A script's body runs on import, and that can cost money
+
+`renderErrorView` lives in `error-sweep.ts`, not in `eval-errors.ts`, because the latter is a
+script: importing it to render one view executed the whole paid sweep. That is not a
+hypothetical — it happened on 2026-09-12 and cost $0.57, arriving as the "paid run used to
+check progress" anti-pattern through a side door. Anything a test or a console one-liner might
+reasonably want to import belongs in a module with no top-level effects. *Probe:* move it back
+into `eval-errors.ts` and import it from a one-liner → the sweep runs and bills.
+
+### pass^k grades every trial with every grader
+
+`bun run eval:judge --scenario <name> --last <k>` judges the k most recent stored runs of a
+scenario and passes only if every one passes. It exists because RU-3 is scored pass^k, k=3, and
+until 2026-09-12 only its deterministic gates ran three times while the judge ran once — so the
+thing scored pass^3 was the gates, not the case. A trial is one attempt graded by *all* of a
+task's graders, and pass^k is the probability that all k succeed (Anthropic, *Demystifying evals
+for AI agents*, 2026-01-09). The scenario is read from each run's `run.json` rather than from the
+directory name, so a renamed directory cannot silently enter or leave a batch, and asking for
+more trials than exist is an error rather than a quiet pass over fewer. *Probe:* ask for
+`--last 99` of any scenario → it exits 1 naming how many runs exist, rather than judging what it
+found. **Measured 2026-09-12:** zero-priming 3/3 judged pass, $0.1562.
+
 ## File layout
 
 ```
@@ -443,8 +491,9 @@ testing/harness/
   judge.ts           # judgeRubric (the RU judge) and the generic judge() slot; outputFormat json_schema
   rubric.ts          # Rubric and Judgment shapes, JUDGE_INSTRUCTIONS, rubricPrompt, readJudgeResult (SDK-free)
   reference.ts       # buildReference: a hand-written conversation, run against the real engine
-  eval-judge.ts      # bun run eval:judge: judge the reference pairs, or a stored run
-  error-sweep.ts     # errorSweep: every error code provoked once, with its command's --help (S4)
+  eval-judge.ts      # bun run eval:judge: the reference pairs, a stored run, or a scenario's k trials (pass^k)
+  error-sweep.ts     # errorSweep: every error code provoked once, with its command's --help (S4); renderErrorView
+  eval-errors.ts     # bun run eval:errors: RU-7 over the sweep, one judge call per code, manually invoked
   verify-claims.ts   # offline re-verification of E1–E4 against a transcript
 testing/evals/       # agentic scenarios (RU + cross-cutting DE)
   eval_smoke.ts      # trivial scenario proving the loop (no Cog-Graphs CLI needed)
