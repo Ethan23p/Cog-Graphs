@@ -1,4 +1,4 @@
-// The rubric layer's offline judge (testing/rubrics/DRAFTS.md). Paid: one claude-sonnet-5
+// The rubric layer's offline judge (docs/3.1/dev-loop.md, "Rubric layer"). Paid: one claude-sonnet-5
 // call per rubric per conversation, pennies each. No agent runs.
 //
 //   bun run eval:judge --references [RU-1 …]   calibrate: judge every reference pair, and

@@ -1,4 +1,4 @@
-// The judge view (S1 in testing/rubrics/DRAFTS.md): a stored run, rendered as the text an
+// The judge view (S1 in docs/3.1/dev-loop.md, "Rubric layer"): a stored run, rendered as the text an
 // RU judge reads.
 //
 // The rubric layer grades what the User was exposed to, and it grades offline, from the

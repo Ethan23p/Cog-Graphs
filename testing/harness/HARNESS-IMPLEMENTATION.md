@@ -484,7 +484,7 @@ found. **Measured 2026-09-12:** zero-priming 3/3 judged pass, $0.1562.
 
 ```
 testing/harness/
-  IMPLEMENTATION.md  # this file
+  HARNESS-IMPLEMENTATION.md  # this file
   runtime.ts         # runScenario + session driver (ALL SDK imports live here)
   types.ts           # ScenarioDefinition, TurnDef, GateContext, ScenarioResult, Stats
   transcript.ts      # message capture, parsing into per-turn views, md rendering
