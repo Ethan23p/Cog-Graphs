@@ -448,9 +448,11 @@ setup that provoked it, because an Operator meeting the error would not have tha
   is not an exception to the reference-pair rule; it is RU-7 not being the kind of case the
   rule is about. Everything in `RUBRICS` is judged over a conversation and calibrated by a
   pair of them, and `references.test.ts` enforces that over exactly that list. RU-7 is judged
-  over one provoked error with no agent in it, so there is no conversation to pair. *Probe:*
-  add `ERROR_RUBRIC` to `RUBRICS` → "every rubric has a plainly passing and a plainly failing
-  reference" goes red, which is the rule declining to be bent rather than a bug.
+  over one provoked error with no agent in it, so there is no conversation to pair. *Probe,
+  run 2026-09-12:* `RUBRICS.push(ERROR_RUBRIC)` → "every rubric has a plainly passing and a
+  plainly failing reference" goes red, expecting `["fail", "pass"]` for RU-7 and finding `[]`.
+  That is the rule declining to be bent rather than a bug, and it is why RU-7 living outside
+  the list is a statement about RU-7 and not a hole in the enforcement.
 - **Measured, 2026-09-12:** 20/20 codes pass, $0.5728, 5 of the 20 needing a second structured
   output attempt — the same rate the RU judges show. The two strings predicted to be arguable
   (`missing_option`, which redirects to `--help` rather than naming the missing option, and
