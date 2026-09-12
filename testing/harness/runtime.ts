@@ -100,7 +100,7 @@ function assertCredential(): void {
   if (!process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
     throw new Error(
       "No credential found. Set CLAUDE_CODE_OAUTH_TOKEN (run `claude setup-token`) or " +
-        "ANTHROPIC_API_KEY, in your environment or .env. See testing/harness/IMPLEMENTATION.md (E5).",
+        "ANTHROPIC_API_KEY, in your environment or .env. See testing/harness/HARNESS-IMPLEMENTATION.md (E5).",
     );
   }
 }
@@ -192,7 +192,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
     // Plugin/skill interface under test. `settingSources: []` blocks skills that
     // would be *discovered* from user/project settings; these are passed
     // explicitly, so isolation is preserved and the skill under test still loads.
-    // Unverified until the plugin exists — see testing/harness/IMPLEMENTATION.md U1 for the check.
+    // Unverified until the plugin exists — see testing/harness/HARNESS-IMPLEMENTATION.md U1 for the check.
     plugins: def.agent.plugins,
     skills: def.agent.skills,
     executable: "bun",
@@ -256,7 +256,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioResu
         // user turn, after that turn's assistant messages; per-turn (not
         // cumulative) usage/cost. No `session_state_changed` message was observed
         // at all in this mode, so `result` is the signal we key on.
-        // Claims E1/E2/E3 in testing/harness/IMPLEMENTATION.md carry the steps to re-verify this against a
+        // Claims E1/E2/E3 in testing/harness/HARNESS-IMPLEMENTATION.md carry the steps to re-verify this against a
         // new SDK build. If a future SDK stops emitting per-turn results, fall back
         // to `system/session_state_changed {state:'idle'}`.
         if (msg.type === "result") {

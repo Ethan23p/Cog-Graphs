@@ -1,4 +1,4 @@
-// S4 — the error sweep RU-7 is judged over (testing/rubrics/DRAFTS.md).
+// S4 — the error sweep RU-7 is judged over (docs/3.1/dev-loop.md, "Rubric layer").
 //
 // Every error code the engine can raise, provoked once by direct invocation, with exactly
 // what an Operator meeting it would have in front of them: the command they ran, the whole

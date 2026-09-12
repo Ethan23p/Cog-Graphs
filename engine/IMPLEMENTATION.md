@@ -46,9 +46,8 @@ is the entire reason this file exists.
 | File | Owns |
 |---|---|
 | `Cog-Graphs` page in Logseq | The spec. Scope, entities, capabilities, roadmap, cases. Authoritative. |
-| `testing/CASES.md` | Every case there is, in slice order, plus minted ones. Navigation. |
-| `testing/DISPUTES.md` | A landed case that looks *wrong*. Ethan resolves. |
-| `testing/harness/IMPLEMENTATION.md` | The eval runtime and its SDK claims. |
+| `docs/3.1/dev-loop.md` | The v0.3.1 loop record: every case including minted ones, and resolved disputes. |
+| `testing/harness/HARNESS-IMPLEMENTATION.md` | The eval runtime and its SDK claims. |
 | **this file** | Engine decisions, the reasoning that produced them, and the failure patterns that keep recurring. |
 
 Commit messages carry the same reasoning at higher fidelity and are the primary record —
@@ -193,7 +192,7 @@ The set and its machinery are kept rather than deleted: they are what the next u
 will need, and the retirement is only meaningful while the mechanism that would un-retire it
 still works. The probe therefore runs in the other direction now, and it is a better probe
 than the original — it shows the sweep is live rather than merely absent.
-*Cited:* DE-19.3 (amended 2026-09-09, see `testing/DISPUTES.md`), DE-19.6.1, DE-21,
+*Cited:* DE-19.3 (amended 2026-09-09, see `docs/3.1/dev-loop.md` (Disputes)), DE-19.6.1, DE-21,
 IN-9/10/11; `UNBUILT`. *Probe:* put a **built** command back into `UNBUILT`
 (`new Set(["convention"])`) — the suite grows from 302 tests to 307 as the derived rows come
 back, and **3 go red**: DE-21's "no command reports itself unbuilt any more", DE-19.3's
@@ -501,7 +500,7 @@ import line instead — and the same holds for a reflowed paragraph, a retitled 
 fixed typo in a comment.
 *Cited:* caught three times, the last on 2026-09-09 when a rename script rewrote a *comment* in
 the frozen `testing/evals/eval_smoke.ts`. The guard cannot tell a comment from an assertion and
-should not have to. See `testing/DISPUTES.md`.
+should not have to. See `docs/3.1/dev-loop.md` (Disputes).
 
 ---
 
@@ -522,7 +521,7 @@ does not belong in this table.
 | **EN6** | `Bun.YAML.parse` handles both the profile and the items formats with no dependency. | The repo adds no external deps. JSON-quoted values in the fixtures are valid YAML and survive apostrophes, `=`, non-ASCII and newlines without a YAML writer. | `writeProfileYml` round-trips in DE-6/DE-23; `writeItemsYml` in DE-19, landed 2026-09-09. |
 | **EN7** | On POSIX a filename containing a newline is creatable. | Why the namespace validator rejects control characters rather than relying on the filesystem to. | **Reasoned, not observed** — not reproducible on Windows, which is exactly why it needed writing down. Weakest row in the table; a POSIX run settles it. |
 | **EN8** | With `UNBUILT` empty (standing since DE-21), returning a *built* command to it grows the suite from 302 tests to 307 and reds exactly 3. | The five revived tests prove the sweep is derived from the CLI rather than absent; the three failures prove a false `UNBUILT` entry is caught rather than believed. | Edit `UNBUILT` to `new Set(["convention"])`, run `bun test testing/tests`. Run 2026-09-09. |
-| **EN9** | **Where the graph lands changes how much an agent spends getting there.** Same Walking Skeleton scenario: 21 agent turns / 15 tool calls / 186,382 tokens in `~/cog-graph-workspaces/`, against 24 / 18 / 245,997 under the platform temp root. | DE-7's warning is doing exactly the work it was built for — the agent read it, stopped, and asked the User whether to move the graph before writing. That is right, and it costs roughly a sixth of the ergonomics budget, which is only visible from a live run. Location is part of this interface's UX, not just the harness's setup. | `bun run eval:skeleton` (~$0.40) with the sandbox pointed at `tmpdir()` versus the home workspace. Run 2026-09-09. Full account in `testing/harness/IMPLEMENTATION.md`. |
+| **EN9** | **Where the graph lands changes how much an agent spends getting there.** Same Walking Skeleton scenario: 21 agent turns / 15 tool calls / 186,382 tokens in `~/cog-graph-workspaces/`, against 24 / 18 / 245,997 under the platform temp root. | DE-7's warning is doing exactly the work it was built for — the agent read it, stopped, and asked the User whether to move the graph before writing. That is right, and it costs roughly a sixth of the ergonomics budget, which is only visible from a live run. Location is part of this interface's UX, not just the harness's setup. | `bun run eval:skeleton` (~$0.40) with the sandbox pointed at `tmpdir()` versus the home workspace. Run 2026-09-09. Full account in `testing/harness/HARNESS-IMPLEMENTATION.md`. |
 
 ---
 
@@ -532,9 +531,9 @@ Nothing, as of 2026-09-11. Ethan's four rulings that day, for the record:
 
 - **The `items.yml` shape: ratified.** See the entry above. Checking it also turned up a
   hole: no surface showed the shape. That is now DE-5.1.
-- **The IN-9/10/11 amendment: confirmed.** See `testing/DISPUTES.md`.
+- **The IN-9/10/11 amendment: confirmed.** See `docs/3.1/dev-loop.md` (Disputes).
 - **Minted-case numbering: by subject first, by the slice in progress second.** The rule
-  is in `CLAUDE.md`. The DE-19.1–19.8 block keeps its provenance numbers, because its IDs
+  is in `docs/3.1/dev-loop.md` (The build loop). The DE-19.1–19.8 block keeps its provenance numbers, because its IDs
   are cited everywhere.
 - **Zero-based `index`: ratified.** The field's name settles the ambiguity in "by
   position", and its reader is an agent indexing back into the array it just wrote.

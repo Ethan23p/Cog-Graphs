@@ -126,8 +126,8 @@ for (const v of violations) {
   console.error(`    - ${v.line.trim().slice(0, 100)}`);
 }
 console.error(
-  `\nA green case that looks wrong is a DISPUTES.md entry, not an edit. If Ethan has already\n` +
-    `resolved it, land the amendment in the same commit as the resolution, so the history shows\n` +
+  `\nA green case that looks wrong is a dispute for Ethan, recorded and timestamped, not an\n` +
+    `edit (v0.3.1's are in docs/3.1/dev-loop.md). If Ethan has already resolved it, land the amendment in the same commit as the resolution, so the history shows\n` +
     `the case changed by decision and not by drift.`,
 );
 process.exit(1);

@@ -1,4 +1,4 @@
-// The rubric layer's shapes and the words a judge is given (S2 in testing/rubrics/DRAFTS.md).
+// The rubric layer's shapes and the words a judge is given (S2 in docs/3.1/dev-loop.md, "Rubric layer").
 //
 // SDK-free, so what a judge reads, and how its answer is read back, can be inspected and
 // tested without a paid call; judge.ts is where it is sent. Rubric content lives in
@@ -36,7 +36,7 @@ export interface Judgment {
 
 // The judge answers through the SDK's structured output (outputFormat), which is a tool the
 // model calls, validated and re-prompted on a mismatch; it is not constrained decoding. Three
-// choices here were measured rather than assumed, on 2026-09-11 (testing/harness/IMPLEMENTATION.md,
+// choices here were measured rather than assumed, on 2026-09-11 (testing/harness/HARNESS-IMPLEMENTATION.md,
 // "How an RU judge answers", has the counts):
 // - The prose field is `rationale`, not `reasoning`. The judge sometimes closes its long prose
 //   field with a tag named after the field (`</reasoning>`) instead of ending the argument, and
