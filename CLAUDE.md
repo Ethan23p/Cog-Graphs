@@ -28,7 +28,8 @@ to hold it.
 | `testing/evals/*.ts` | The paid layer — scenarios run against a live agent. Frozen once green. |
 | `testing/rubrics/*.ts` | Rubrics and their reference pairs. Frozen once green. |
 | `testing/harness/` | The eval runtime. Not frozen. `HARNESS-IMPLEMENTATION.md` there covers the SDK. |
-| `docs/3.1/dev-loop.md` | The record of the v0.3.1 build loop: every case including minted ones, resolved disputes, the engine's implementation decisions with their probes, and the rubric layer's drafting. **Read the engine decisions before changing engine behavior.** |
+| `engine/IMPLEMENTATION.md` | The decisions the engine embodies, why, and what was rejected — each with a probe that would prove it worthless. **Read before changing engine behavior.** |
+| `docs/3.1/dev-loop.md` | The record of the v0.3.1 build loop: every case including minted ones, resolved disputes, and the rubric layer's drafting. |
 
 ```bash
 bun run check          # typecheck && guard && tests — the commit gate
