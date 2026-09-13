@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import * as path from "node:path";
+import { ERRORS } from "../../engine/errors";
 import { errorSweep, unreachableCodes } from "../harness/error-sweep";
-import { REPO_ROOT } from "./helpers";
 
 // S4 — the error sweep RU-7 is judged over.
 //
@@ -13,22 +11,26 @@ import { REPO_ROOT } from "./helpers";
 // invocation, the whole error, and that command's `--help`.
 //
 // The failure this rules out: a sweep that has quietly stopped covering the engine. A code
-// added to `engine/main.ts` with no provocation would otherwise ship ungraded, and the sweep
-// would go on reporting a clean pass over the codes it still remembers. So the expected set
-// is derived from the engine's own source rather than typed here — a list typed here would
-// be exactly as stale as the sweep it is checking.
+// added to the engine with no provocation would otherwise ship ungraded, and the sweep would
+// go on reporting a clean pass over the codes it still remembers. So the expected set is the
+// engine's own error registry rather than a list typed here — a list typed here would be
+// exactly as stale as the sweep it is checking.
+//
+// Changed 2026-09-12, approved by Ethan. The expected set used to be read out of
+// `engine/main.ts` by a regex over `fail(EXIT.X, "code")` call sites. When the engine was
+// split into modules (Polish phase, implementing best practices), every code came to be
+// declared once in `engine/errors.ts`, and a call site naming an undeclared code no longer
+// typechecks. Enumerating the registry asserts the same claim without depending on which
+// file `fail` is called from or how the call is spelled.
 
-/** Every code the engine passes to `fail`, read out of its source. */
+/** Every code the engine can raise, from its error registry. */
 function codesInEngine(): string[] {
-  const source = readFileSync(path.join(REPO_ROOT, "engine", "main.ts"), "utf8");
-  const codes = new Set<string>();
-  for (const m of source.matchAll(/\bfail\(\s*EXIT\.[A-Z_]+\s*,\s*"([a-z_]+)"/g)) codes.add(m[1]!);
-  return [...codes].sort();
+  return Object.keys(ERRORS).sort();
 }
 
 describe("S4 — the error sweep covers the engine", () => {
-  test("the engine's codes are found in its source at all", () => {
-    // If this regex ever stops matching, every assertion below goes vacuously green.
+  test("the engine's codes are found in its registry at all", () => {
+    // If the registry were ever emptied, every assertion below would go vacuously green.
     expect(codesInEngine().length).toBeGreaterThan(15);
   });
 

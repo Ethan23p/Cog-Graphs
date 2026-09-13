@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "cog-graphs",
+  "description": "Cog-Graphs: persistent, structured stores an AI agent spawns on demand.",
+  "owner": {
+    "name": "Ethan Porter",
+    "url": "https://github.com/Ethan23p"
+  },
+  "plugins": [
+    {
+      "name": "cog-graphs",
+      "source": "./engine",
+      "description": "Spawn and manipulate Cog Graphs — persistent, structured stores (lists, inventories, knowledge bases) that an AI agent creates on demand and keeps in the User's own directory.",
+      "category": "productivity"
+    }
+  ]
+}

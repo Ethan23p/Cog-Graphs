@@ -1,0 +1,17 @@
+{
+  "description": "When the cog-graphs skill is invoked, loads `cog-graphs introduce --interface-skill` as context, so the agent has the primer in the same turn instead of spending a tool call on it.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"${CLAUDE_PLUGIN_ROOT}/hooks/preload-primer.ts\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

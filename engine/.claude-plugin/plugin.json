@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "cog-graphs",
+  "displayName": "Cog-Graphs",
+  "version": "0.3.1",
+  "description": "Spawn and manipulate Cog Graphs — persistent, structured stores (lists, inventories, knowledge bases) that an AI agent creates on demand and keeps in the User's own directory. Puts the `cog-graphs` CLI on PATH and primes the agent to drive it.",
+  "author": {
+    "name": "Ethan Porter",
+    "url": "https://github.com/Ethan23p"
+  },
+  "repository": "https://github.com/Ethan23p/Cog-Graphs",
+  "keywords": ["knowledge-base", "memory", "lists", "inventory", "eav", "sqlite", "cli"]
+}

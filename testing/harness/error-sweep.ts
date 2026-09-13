@@ -9,8 +9,8 @@
 // prepared graph or file, the preparation happens here and is not part of what the judge
 // sees: the judge is shown the failing invocation, not the setup that made it fail.
 //
-// Coverage is asserted for free in testing/tests/error-sweep.test.ts, against the codes read
-// out of the engine's own source, so a code added to the engine cannot ship ungraded.
+// Coverage is asserted for free in testing/tests/error-sweep.test.ts, against the engine's own
+// error registry (engine/errors.ts), so a code added to the engine cannot ship ungraded.
 
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -223,7 +223,7 @@ const PROVOCATIONS: Provocation[] = [
     setUp: () => {
       // Derived from the CLI, never from a literal: DE-19.3's resolution. When nothing is
       // unbuilt this provocation has no invocation, and the sweep says so by omitting it —
-      // which is also why the free test derives its expectations from the engine's source.
+      // which is also why the free test derives its expectations from the engine's registry.
       return [];
     },
   },
