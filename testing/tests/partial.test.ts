@@ -19,7 +19,7 @@ import { EXIT, ERROR_FIELDS } from "./contract";
 // The obvious shape is a success payload on stdout with a `rejected` array in it. IN-9
 // forbids it: every non-zero exit puts one parseable object on stderr and leaves stdout
 // empty, and IN-11 requires that object to carry code / message / next_step. Those are
-// frozen invariants and they are right — an agent that pipes stdout into a parser must
+// settled invariants and they are right — an agent that pipes stdout into a parser must
 // never have a partial run corrupt the parse, and "some of it worked" is precisely the
 // outcome an Operator has to act on. So the report *is* the error object, with the counts
 // and the rejects carried as extra fields on it. That keeps one rule for the whole

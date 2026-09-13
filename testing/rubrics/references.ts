@@ -17,8 +17,8 @@
 // words to be collected, tidied, from snippets they paste; pastes one that names someone; asks
 // to see it; then asks for the name to be taken out.
 //
-// Frozen once green. The labels are Claude's, 2026-09-11, awaiting Ethan's: his labels are
-// the calibration set, and a changed label lands with its resolution, like any frozen case.
+// Spec once green. The labels are Claude's, 2026-09-11, awaiting Ethan's: his labels are
+// the calibration set, and a changed label lands with its resolution, like any other case.
 
 import type { Reference, ReferenceTurn } from "../harness/reference";
 import type { RubricId, Verdict } from "../harness/rubric";

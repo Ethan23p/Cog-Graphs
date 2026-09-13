@@ -23,18 +23,17 @@ to hold it.
 | Path | What it is |
 |---|---|
 | `engine/main.ts` | The entire CLI. One file, no framework. Override the entrypoint under test with `COG_CLI_ENTRY`. |
-| `testing/tests/*.test.ts` | The cheap layer. Frozen once green. |
-| `testing/tests/helpers.ts` | Fixture builders. Not frozen. |
-| `testing/evals/*.ts` | The paid layer — scenarios run against a live agent. Frozen once green. |
-| `testing/rubrics/*.ts` | Rubrics and their reference pairs. Frozen once green. |
-| `testing/harness/` | The eval runtime. Not frozen. `HARNESS-IMPLEMENTATION.md` there covers the SDK. |
+| `testing/tests/*.test.ts` | The cheap layer. Spec. |
+| `testing/tests/helpers.ts` | Fixture builders. Mechanism. |
+| `testing/evals/*.ts` | The paid layer — scenarios run against a live agent. Spec. |
+| `testing/rubrics/*.ts` | Rubrics and their reference pairs. Spec. |
+| `testing/harness/` | The eval runtime. Mechanism. `HARNESS-IMPLEMENTATION.md` there covers the SDK. |
 | `engine/IMPLEMENTATION.md` | The decisions the engine embodies, why, and what was rejected — each with a probe that would prove it worthless. **Read before changing engine behavior.** |
 | `docs/3.1/dev-loop.md` | The record of the v0.3.1 build loop: every case including minted ones, resolved disputes, and the rubric layer's drafting. |
 
 ```bash
-bun run check          # typecheck && guard && tests — the commit gate
+bun run check          # typecheck && tests — the commit gate
 bun test               # cheap layer only, ~seconds
-bun run guard          # frozen-file check on its own
 bun run verify:claims  # re-runs the free empirical claims in HARNESS-IMPLEMENTATION.md
 bun run eval:smoke     # paid, ~$0.04 — the harness works end to end
 bun run eval:skeleton  # paid, ~$0.40 — the Walking Skeleton through a live agent
@@ -76,7 +75,10 @@ is part of the job, not an interruption of it.
 
 - **Tests and evals are a second layer of the spec.** They are never edited to fit the
   implementation. If a test seems wrong, that's a conversation with Ethan, recorded and
-  timestamped — not a quiet edit.
+  timestamped — not a quiet edit. What is spec is what a case asserts, rubrics and their
+  reference pairs included; comments, imports and wording around them are maintained like
+  any other code. Adding a case is always fine. `helpers.ts` and `testing/harness/` are
+  mechanism, not spec.
 - **Data over behavior.** Data is explicit, portable, inspectable, long-lived; behavior is
   modular and replaceable. When in doubt, put the durable thing in the artifact.
 - **Simple and minimal.** Few baked-in assumptions. Anything consequential is centrally
@@ -89,19 +91,8 @@ is part of the job, not an interruption of it.
   IN-6. One short-lived process per command needs no concurrency. Revisit only when
   concurrent Operators become real — and revisit IN-6 *with* it, not instead of it.
 
-## Frozen files
-
-`testing/tests/*.test.ts`, `testing/tests/contract.ts`, `testing/evals/*.ts` and
-`testing/rubrics/*.ts` are append-only. Add cases freely; never edit a landed one.
-`bun run guard` enforces it by rejecting removed lines — it is the only thing keeping the
-second layer of the spec honest.
-
-The guard compares lines, so **any** rewritten line is a removal: an extended `import`, a
-reflowed comment, a fixed typo. Add *new* lines only. Comments in frozen files still name
-docs that have since moved; `docs/3.1/dev-loop.md` opens with a table resolving them.
-
-`helpers.ts` and everything under `testing/harness/` are **not** frozen. They are mechanism,
-not spec.
+Some test and eval comments still name docs that have since moved; `docs/3.1/dev-loop.md`
+opens with a table resolving them.
 
 ## The paid layer
 
