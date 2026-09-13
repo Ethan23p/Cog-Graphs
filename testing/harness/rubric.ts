@@ -2,7 +2,7 @@
 //
 // SDK-free, so what a judge reads, and how its answer is read back, can be inspected and
 // tested without a paid call; judge.ts is where it is sent. Rubric content lives in
-// testing/rubrics/rubrics.ts and is frozen once green; this file is mechanism.
+// testing/rubrics/rubrics.ts and is spec once green; this file is mechanism.
 
 export type RubricId = `RU-${string}`;
 

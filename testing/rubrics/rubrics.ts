@@ -5,7 +5,7 @@
 // the judge is given. Each rubric tells it what the doc intends and then gets out of the way:
 // the verdict is the judge's, weighed by taste and in context, and no field is a checklist.
 //
-// Frozen once green (the guard covers testing/rubrics/*.ts). A rubric lands with its
+// Spec once green: never edited to fit the implementation. A rubric lands with its
 // reference pair in references.ts, and it is green when the judge gets both of them right.
 
 import type { Rubric } from "../harness/rubric";

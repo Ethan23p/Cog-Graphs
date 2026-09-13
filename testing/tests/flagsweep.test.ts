@@ -16,7 +16,7 @@ import { COMMANDS, EXIT, GLOBAL_FLAGS } from "./contract";
 // too, so the case's stated purpose — that a flag added later inherits the rule rather
 // than quietly reintroducing the bug — was not served by it.
 //
-// DE-19.6 is green and frozen, and it stays exactly as it is; this is the case it meant
+// DE-19.6 is green, and it stays exactly as it is; this is the case it meant
 // to be. The lesson is worth writing down: a sweep that only asserts "something failed"
 // is not a sweep, because there are always other reasons to fail, and the likeliest one
 // fires first.

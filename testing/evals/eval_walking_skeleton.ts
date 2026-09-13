@@ -281,8 +281,8 @@ if (strays.length > 0) {
 // interface caused to be read; excluding them would let the primer grow without limit and
 // still look free, which is the exact failure the priority on token efficiency is about.
 //
-// Appended below the reporting line rather than folded into it: this file is frozen, and
-// an edited line is a removed line.
+// Appended below the reporting line rather than folded into it: this file was append-only
+// when it landed.
 const CEILINGS = { agentTurns: 48, toolCalls: 36, tokens: 500_000 };
 const de24 = {
   agentTurns: result.stats.agentTurnsPerMessage.reduce((a, b) => a + b, 0),
@@ -322,8 +322,8 @@ console.error(
 // half-played, so finishing it is a real change, and this asserts the change was made:
 // Portal 2's values differ between the checkpoints either side of turn 5. Checkpoint 0 is
 // taken before turn 1 and one more after each turn's gate, so those are 4 and 5.
-// Appended here rather than written into turn 5's gate: this file is frozen, and the gate
-// is not handed the checkpoint from before its turn.
+// Appended here rather than written into turn 5's gate: this file was append-only when it
+// landed, and the gate is not handed the checkpoint from before its turn.
 const portalAt = (i: number): Record<string, string> | undefined => {
   for (const state of Object.values(result.checkpoints[i]?.graphs ?? {})) {
     for (const [entity, attributes] of Object.entries(state)) if (PORTAL.test(entity)) return attributes;

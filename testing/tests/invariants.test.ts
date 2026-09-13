@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
-import { makeSandbox, runCli, spawnGraph, writeProfileYml } from "./helpers";
-// IN-10.1 (minted): added as its own statement rather than folded into the import
-// above, because this file is frozen and an edited line is a removed line.
-import { writeRecordsYml } from "./helpers";
+import { makeSandbox, runCli, spawnGraph, writeProfileYml, writeRecordsYml } from "./helpers";
 import { COMMANDS, ERROR_FIELDS, EXIT, GLOBAL_FLAGS } from "./contract";
 
 // IN-9, IN-10, IN-11 — the interface invariants, which are the ones an agent actually

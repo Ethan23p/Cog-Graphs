@@ -13,8 +13,8 @@
 // trial is one attempt at the task graded by *all* of its graders, and pass^k is the
 // probability that all k trials succeed. RU-3 is scored pass^3, and until 2026-09-12 only
 // its deterministic gates ran three times while the judge ran once — so the thing scored
-// pass^3 was the gates, not the case. The scenario file is frozen and ends in process.exit,
-// so the judging cannot be appended to it; it belongs here, where the stored runs are.
+// pass^3 was the gates, not the case. The scenario file ends in process.exit, and the
+// judging belongs here, where the stored runs are.
 //
 // Every view, judgment and judge session is written under testing/artifacts/judge-<stamp>/,
 // so a verdict can be read against exactly what the judge was shown. An error is never a

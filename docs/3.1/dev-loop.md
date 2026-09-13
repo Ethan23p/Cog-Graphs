@@ -19,8 +19,9 @@ means that part.
 ## Former locations
 
 Comments in frozen files (`testing/tests/*.test.ts`, `testing/evals/*.ts`,
-`testing/rubrics/*.ts`) still name the old paths, and the freeze keeps them that way. Read
-them through this table.
+`testing/rubrics/*.ts`) still name the old paths, and the freeze kept them that way. Read
+them through this table. (The freeze guard was retired on 2026-09-12, so these comments can
+now be corrected in place.)
 
 | Old pointer | Now |
 |---|---|
@@ -97,6 +98,12 @@ capability the doc describes in prose but never grades, and a flag that `--help`
 while the engine ignores it.
 
 ### Frozen files
+
+> **Retired 2026-09-12 (Ethan).** The freeze and `bun run guard` were scaffolding for this
+> loop and were removed when it closed. The principle they enforced carries on in
+> `CLAUDE.md`: a case's assertions are spec and are never edited to fit the implementation;
+> the comments and imports around them are ordinary code. The section below is kept as the
+> record of how the loop ran.
 
 `testing/tests/*.test.ts`, `testing/tests/contract.ts` and `testing/evals/*.ts` are
 append-only. Add cases freely; never edit a landed one. `bun run guard` enforces it by
