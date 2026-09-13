@@ -69,6 +69,28 @@ the spec withholds them), help-as-data, the `.sqlite`/`.md` invariant, no WAL.
 4. Docs: IMPLEMENTATION.md, CLAUDE.md, error-sweep comments.
 5. Plugin packaging.
 
+## Verification beyond the suite
+
+`$CLAUDE_JOB_DIR/tmp/diff.ts` (job-local, not committed) runs ~100 invocations against the
+original `main.ts` and the split engine in twin sandboxes and diffs exit code, stdout, stderr
+and the sidecar byte for byte. Result after the split: 2 differences, both intended — see
+Deferred 1 and 2.
+
 ## Deferred (for Ethan at the end)
 
-_(appended as found)_
+1. **Behavior change, improvement:** `cog-graphs constructor` (any `Object.prototype` key)
+   used to crash with a Bun stack trace at exit 1 — `HELP[command]` found the prototype
+   member. The table lookup uses `Object.hasOwn`, so it is now `unknown_command`. No case
+   pinned it.
+2. **Behavior change, improvement:** a write against an unwritable, stale sidecar reported
+   `sidecar_unwritable` **twice** (once at graph resolution, once after the write). The sync
+   now runs once, after the command, so it reports once. IN-4.1 asserts presence only.
+3. **Not changed, worth a decision:** an exception that is not a `CliError` (a SQLite error, a
+   disk failure) still escapes as a Bun stack trace at exit 1. Exit 6 `internal` exists for
+   this; mapping it would add a registry code the error sweep then has to provoke.
+4. **Not changed:** `import` inserts without a transaction, one autocommit per row. On the E:
+   hard disk (EN4) that is slow for big files; wrapping the loop in one transaction keeps
+   partial-with-report semantics. Performance, not correctness.
+5. **Not changed:** a profile namespace with surrounding whitespace is trimmed for the
+   filename but stored untrimmed in the profile table, so the sidecar H1 and `introduce`
+   show the untrimmed form.
