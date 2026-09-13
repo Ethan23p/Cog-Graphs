@@ -94,3 +94,25 @@ Deferred 1 and 2.
 5. **Not changed:** a profile namespace with surrounding whitespace is trimmed for the
    filename but stored untrimmed in the profile table, so the sidecar H1 and `introduce`
    show the untrimmed form.
+6. **Doc hole:** moving `commandHelp` later in `STAGES` turns nothing red — no case combines
+   `--help` with a bad flag. Recorded in IMPLEMENTATION.md as a hole; a case would need
+   minting.
+7. **Packaging, unverified live:** the plugin validates (`claude plugin validate .` and
+   `engine`), the launchers and the hook pass smoke tests, but I did not install it into
+   Claude Code — that writes to your user config. The Skill tool's input key (`skill` vs
+   `skill_name`) and whether a plugin skill arrives namespaced (`cog-graphs:cog-graphs`) are
+   unconfirmed, so the hook accepts all four spellings. Try: `/plugin marketplace add
+   <path-to-worktree>` then `/plugin install cog-graphs@cog-graphs`, invoke the skill, and
+   check the primer lands.
+8. **Observed this session:** the `logseq-interface` primer hook did not fire when its skill
+   was invoked as `logseq-interface:logseq-interface` — likely the same namespacing question,
+   in your other plugin.
+9. **Launcher outside the alphabet:** `bin/cog-graphs` exits 127 when Bun is missing (the
+   shell's own code for "not found"), which the engine's exit alphabet can't cover because
+   the engine never ran.
+10. **Paid layer, yours to change:** the Walking Skeleton eval's comment says it should gain
+    the skill and lose the sentence once the plugin lands. Frozen-once-green territory.
+11. **Design doc:** Tech spec > Components could take the module table from IMPLEMENTATION.md
+    ("The shape of the engine").
+12. **Corrected on the way:** an IMPLEMENTATION.md claim about `convention` and the sidecar
+    did not survive its probe; the EN8 entry is rewritten against what the probes showed.

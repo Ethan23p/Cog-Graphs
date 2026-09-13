@@ -1,0 +1,5 @@
+# The plugin's launchers run on whatever machine installs them, so their line endings are
+# fixed here rather than left to the checkout: a CRLF in the sh launcher breaks `exec`, and
+# cmd.exe wants CRLF.
+engine/bin/cog-graphs text eol=lf
+engine/bin/*.cmd text eol=crlf

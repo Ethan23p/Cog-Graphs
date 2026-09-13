@@ -1,0 +1,8 @@
+#!/bin/sh
+# cog-graphs — the plugin's launcher. Claude Code puts this directory on the Bash tool's PATH,
+# so an agent types `cog-graphs <command>` exactly as the engine's own help writes it.
+if ! command -v bun >/dev/null 2>&1; then
+  echo "cog-graphs runs on Bun, which is not on PATH. Install it from https://bun.sh, then retry." >&2
+  exit 127
+fi
+exec bun "$(dirname "$0")/../main.ts" "$@"
