@@ -1,131 +1,91 @@
 # Engine — Implementation Decisions
 
-> **Status**: opened 2026-09-09; covers the v0.3.1 build loop through DE-21 and DE-24.
-> Suite at 308 tests, 0 failing (2026-09-09). `UNBUILT` is empty.
+> **Status**: covers the v0.3.1 engine. Every probe below was re-run on 2026-09-12 against
+> 333 tests; entries whose probe no longer went red were deleted that day.
 > **Purpose**: the decisions `engine/main.ts` embodies, why each was taken, and what was
 > rejected. The design doc owns *what* the engine must do. This file owns *how*, and —
 > more usefully — *why not the other way*.
 
-## How to read this file, and how it defends its own length
+## How this file defends its own length
 
 A long internal document decays predictably: nobody can tell which lines still mean
-anything, so nobody deletes any of them, so it grows, so fewer people read it, so more of
-it goes stale. The usual defenses — a review cadence, an owner, a "last updated" stamp —
-all depend on somebody remembering. This file defends itself the way the test suite does:
-**every claim carries the experiment that would prove it worthless.**
+anything, so nobody deletes any, so it grows and goes stale. This file defends itself the
+way the test suite does: **every claim carries the experiment that would prove it
+worthless.** Each entry is:
 
-Every line here is held to three things:
-
-1. **Argued** — says why the decision was taken *and what was rejected*. A decision with no
+1. **Argued** — why the decision was taken *and what was rejected*. A decision with no
    discarded alternative is a description of the code, and the code is already there.
-2. **Cited** — points at something checkable: a case ID, a file and symbol, a commit.
-   Citations name a **symbol, never a line number**. Line numbers went stale twice in two
-   sessions; a wrong one is worse than none, because it sends the reader to a real line that
-   says something else. Corrected wholesale at DE-21, by script rather than by eye, since eye
-   is how they drifted.
-3. **Falsifiable** — names a **probe**: a specific change to make, and the specific case
-   expected to go red.
+2. **Cited** — a case ID, a symbol, a commit. **Never a line number**: a wrong one sends the
+   reader to a real line that says something else.
+3. **Falsifiable** — a **probe**: a specific change to `main.ts`, and the specific case
+   expected to go red. Run only the test file holding that case; it takes seconds.
 
-**When a probe fails to go red, delete the entry.** Do not soften it, do not add a caveat,
-do not reword it into something vaguer that is technically still true. A claim that survives
-by becoming unfalsifiable is worse than a deleted one, because it still costs a reader their
-attention and now teaches them nothing. The file getting shorter is the mechanism working.
+**When a probe fails to go red, delete the entry** — do not soften it into something vaguer
+that is technically still true. A probe marked ***reasoned*** has not been shown red and is
+labelled so it can be discounted. Every count carries the date it was measured; a stale
+number is the most persuasive kind of wrong claim, because it looks like evidence.
 
-A probe marked ***reasoned*** has not been run. Those are the weak lines by construction and
-are labelled so a reader can discount them without guessing which ones they are. Every
-measured count carries the date it was measured; a count without one has not been checked and
-should be treated as absent. That policy exists because the `next_step` count below read 12,
-was re-run, and was wrong — the suite had grown underneath it, and a stale number is the most
-persuasive kind of wrong claim because it looks like evidence.
-
-The bar for adding an entry: **a future engineer could plausibly undo it by accident.** A
-decision whose reversal would be obviously wrong does not need writing down. One that looks
-like tidying does — and most of what looks like tidying in `main.ts` is load-bearing, which
-is the entire reason this file exists.
-
-| File | Owns |
-|---|---|
-| `Cog-Graphs` page in Logseq | The spec. Scope, entities, capabilities, roadmap, cases. Authoritative. |
-| `docs/3.1/dev-loop.md` | The v0.3.1 loop record: every case including minted ones, and resolved disputes. |
-| `testing/harness/HARNESS-IMPLEMENTATION.md` | The eval runtime and its SDK claims. |
-| **this file** | Engine decisions, the reasoning that produced them, and the failure patterns that keep recurring. |
-
-Commit messages carry the same reasoning at higher fidelity and are the primary record —
-`git log --oneline` plus `git show` on any case ID gets the full argument. This file exists
-because that record is unsearchable *across* decisions: `git log` can find why DE-19.7
-happened, but not "everything we have decided about the sidecar."
+The bar for adding an entry: **a future engineer could plausibly undo it by accident.** Most
+of what looks like tidying in `main.ts` is load-bearing, which is why this file exists.
+Commit messages carry the same reasoning at higher fidelity; this file exists because `git
+log` cannot answer "everything we have decided about the sidecar." The v0.3.1 cases,
+disputes and rulings are in `docs/3.1/dev-loop.md`.
 
 ---
 
 ## The one invariant everything else falls out of
 
 **The `.sqlite` is authoritative. The `.md` is a view of it. Nothing is ever taken back from
-the view.**
+the view.** When a new question comes up about the two faces, answer it from here first.
 
-Half the decisions below are this rule applied to a new situation. When a new question comes
-up about the two faces, answer it from here before inventing anything.
-
-Consequences, each a separate slice before the pattern was obvious:
-
-- **Escaping happens at render time, never at write time.** The database keeps exactly what
-  it was given; the rendering is what has to be honest about it. Escaping on the way in would
+- **Escaping happens at render time, never at write time.** Escaping on the way in would
   corrupt the authoritative face to protect a derived one.
   *Cited:* DE-19.7; `inline()`, called only from `renderSidecar` and `prettyLines`.
-  *Probe:* move the `inline()` call into the `add-item` INSERT path — DE-23 goes red on
-  source fidelity while DE-19.7 stays green, which is the shape of the mistake.
+  *Probe:* wrap the value in `inline()` in `add-item`'s INSERT — DE-23 goes red, and so do
+  DE-19.7's "the database keeps the value exactly as it was given" cases.
 - **A view that cannot be refreshed is a warning, never a failure.** The answer is still
-  correct, and on a write the artifact has already committed — failing there would report a
-  loss that did not happen.
-  *Cited:* IN-4.1; the try/catch around `writeSidecar` pushing `sidecar_unwritable`.
-  *Probe:* let the `writeSidecar` exception propagate — IN-4.1 goes red.
+  correct, and on a write the artifact has already committed.
+  *Cited:* IN-4.1; the catch in `writeSidecar` pushing `sidecar_unwritable`.
+  *Probe:* rethrow from that catch — all four IN-4.1 cases go red.
 - **Any face the engine renders needs the same guard.** Hardening the sidecar did not harden
-  `--pretty`, because `--pretty` did not exist yet. The guard belongs to the class of rendered
-  output, not to the renderer that existed when it was written.
+  `--pretty`, because `--pretty` did not exist yet.
   *Cited:* DE-19.7.1; commit `6234f9c`. *Probe:* drop `inline()` from `prettyLines` —
   DE-19.7.1 goes red, DE-19.7 stays green.
 - **`initialize` refuses when either face's filename is occupied.** A file at `notes.md` is
-  not presumed to be ours. Everything the artifact owns, it created.
-  *Cited:* DE-19.5; commit `2f03085`. *Probe:* check only the `.sqlite` — DE-19.5 goes red on
-  the `.md` half.
+  not presumed to be ours; everything the artifact owns, it created.
+  *Cited:* DE-19.5. *Probe:* check only the `.sqlite` — DE-19.5 goes red on the `.md` half.
 
 ---
 
 ## The shape of `main.ts`, and why the order is load-bearing
 
-One file, top to bottom, no framework. It runs as a script: the dispatch is a sequence of
-`if` blocks that either `succeed()`, `fail()`, or fall through. **The sequence is itself
-several of the decisions below** — a reader who rearranges it for tidiness changes behavior
-without touching a condition.
+One file, run as a script: the dispatch is a sequence of `if` blocks that `succeed()`,
+`fail()`, or fall through. **The sequence is itself several of the decisions below** — a
+reader who rearranges it for tidiness changes behavior without touching a condition.
 
 | # | Stage | Symbol / marker | Why it sits here |
 |---|---|---|---|
-| 1 | Parse | `commandIndex`, `flags`, `PRETTY` | The command is the first token that is **not** a global flag, so `--pretty query` and `query --pretty` are one request. |
-| 2 | Tables | `SCHEMA`, `HELP`, `UNBUILT`, `EXIT` | Declarative. Help, the required-flag check and the unknown-option check all read the same table, so they cannot drift. |
+| 1 | Parse | `commandIndex`, `flags`, `PRETTY` | The command is the first token that is **not** a global flag. |
+| 2 | Tables | `SCHEMA`, `HELP`, `UNBUILT`, `EXIT` | Help, the required-flag check and the unknown-option check read one table, so they cannot drift. |
 | 3 | Front door | `overview()` | Bare `cog-graphs`, and `help`, exit **0**. |
-| 4 | Per-command help | `HELP[command]` + `--help` | Answers before any validation, so a malformed invocation can still ask what it should have been. |
+| 4 | Per-command help | `HELP[command]` + `--help` | Answers before validation, so a malformed invocation can still ask what it should have been. |
 | 5 | Leading flag | `command.startsWith("--")` | `unknown_option`, not `unknown_command`. |
-| 6 | Unknown command | `!HELP[command]` | Names every command that exists — the error is written for recovery, not for the record. |
-| 7 | Unknown option | `recognized` set | Rejected before anything runs, so a typo never half-executes. Deliberately does not echo the offending option. |
-| 8 | **Dangling flag** | `documented` / `valueless` pass | **Syntax before semantics** — see below. Uniform across the grammar. |
-| 9 | Missing required flag | `HELP[command].required` | Semantics. Strictly after 8. |
-| 10 | Command bodies | `initialize`, `add-item`, `import`, `convention`, `modify-item`, `remove-item`, `query`, `introduce` | In the order an Operator meets them. |
+| 6 | Unknown command | `!HELP[command]` | Names every command that exists. |
+| 7 | Unknown option | `recognized` | Rejected before anything runs. Deliberately does not echo the option. |
+| 8 | **Dangling flag** | `documented` / `valueless` pass | **Syntax before semantics.** Uniform across the grammar. |
+| 9 | Missing required flag | `HELP[command].required` | Strictly after 8. |
+| 10 | Command bodies | `initialize` … `introduce` | In the order an Operator meets them. |
 | 11 | Fallthrough | `not_implemented` | Documented in `HELP`, no body. Distinct from 6. |
 
-*Probe for the ordering claim:* swap 8 and 9 — DE-19.6.1 goes red on `import --graph`. Swap 5
-and 6 — DE-19.8.1 goes red. Move 4 after 7 and a `--help` on a command with a bad
-flag stops answering — **and nothing goes red**, because no case combines the two (grep for
-`--help` across `testing/tests` on 2026-09-09: 18 uses, none with a bad flag alongside). The
-placement is therefore a decision with no case behind it yet, and the hole is recorded as
-such rather than described as protected.
+*Probes (2026-09-12):* run stage 8 after stage 9 — DE-19.6.1 goes red. Disable stage 5 so
+leading flags reach stage 6 — DE-19.8.1 goes red. Move stage 4 after stage 7 — **nothing
+goes red across all 333 tests**: no case combines `--help` with a bad flag, so that placement
+is a decision with no case behind it, recorded as a hole rather than described as protected.
 
-### The exit alphabet
-
-`0 ok ; 1 usage ; 2 not found ; 3 already exists ; 4 partial ingestion ; 5 ambiguous ;
-6 internal`. Every code is spelled out in `EXIT` — see the first entry under *Output and
-errors* for why a partial map is not a partial feature. IN-10 sweeps every command and pins
-each code to a named condition, so **a new command picks from this list; it does not extend
-it.** Adding a code is a doc-level change, and DE-20.3 below is the case of that being
-declined.
+**The exit alphabet** — `0 ok ; 1 usage ; 2 not found ; 3 already exists ; 4 partial
+ingestion ; 5 ambiguous ; 6 internal` — is spelled out whole in `EXIT`, and IN-10 pins each
+code to a named condition. A new command picks from this list; adding a code is a doc-level
+change (DE-20.3 is the case of one being declined).
 
 ---
 
@@ -133,407 +93,259 @@ declined.
 
 ### Output and errors
 
-**Every non-zero exit code in the alphabet is defined explicitly.**
-A partial `EXIT` map is not a partial feature, it is a silent success: `EXIT.ALREADY_EXISTS`
-reads `undefined`, `process.exit(undefined)` exits **0**, and the command prints a perfectly
-good error on stderr while telling the shell it succeeded. Every case asserting an exit code
-passes against that. This shipped, briefly, and was found by `tsc` — which had been flagging
-six call sites the whole time. `bun run check` exists because of it.
-*Cited:* `EXIT`; claims EN1/EN2 below. *Probe:* delete one key from `EXIT` — `bun run
-typecheck` fails immediately and `bun test` stays green, which is the whole argument for the
-gate.
+**Every exit code in the alphabet is defined explicitly.**
+A partial `EXIT` map is a silent success: a missing key reads `undefined`,
+`process.exit(undefined)` exits **0** (EN1), and the command prints a good error while telling
+the shell it succeeded. `bun run check` runs `tsc` for this reason: it names the defect at the
+source, before any test runs.
+*Cited:* `EXIT`; EN1, EN2. *Probe:* delete `ALREADY_EXISTS` from `EXIT` — typecheck fails, and
+6 tests go red (DE-11, DE-19.5, IN-9, IN-10), run 2026-09-12. The tests catch it only where
+they assert that code; `tsc` catches it everywhere.
 
 **Errors go to stderr, successes to stdout, never both.**
-So an agent can pipe stdout into a parser without a failure corrupting the parse. A command
-writing to both has broken the contract even when each stream is individually well-formed.
-*Cited:* IN-9, which asserts the *quiet* stream is empty rather than only that the loud one
-parses. *Probe:* echo the error payload to stdout as well as stderr — IN-9 goes red; a test
-that only checked "stderr parses" would not.
+So an agent can pipe stdout into a parser without a failure corrupting the parse.
+*Cited:* IN-9, which asserts the *quiet* stream is empty, not only that the loud one parses.
+*Probe:* also write to stdout in `fail()` — 22 IN-9 rows go red (2026-09-12).
 
 **Warnings ride in the payload, not on stderr.**
-Otherwise a success becomes something the Operator must parse two streams to understand, and
-IN-9's "one JSON object on one stream" stops holding. `runtimeWarnings` collects warnings
-raised by machinery rather than by the command; `succeed()` merges them in, preserving the
-`warnings` key when a command supplied one *even if empty*, because DE-7 reads it either way.
-*Cited:* `succeed()`; DE-7, IN-4.1. *Probe:* write a warning to stderr on a successful
-command — IN-9 goes red. *Probe:* drop the empty-array preservation — DE-7 goes red on the
-absent key.
+Otherwise a success must be read from two streams, and IN-9's "one object on one stream"
+stops holding. `runtimeWarnings` collects warnings raised by machinery; `succeed()` merges
+them in.
+*Cited:* `succeed()`; DE-7, IN-4.1. *Probe:* write a warning to stderr in `succeed()` — 42
+IN-9 rows go red (2026-09-12).
 
-**`next_step` names something to do.**
-A command, a flag, or a file. It is the field that makes an error worth having, and the first
-one to decay into a restatement of the message.
+**`next_step` names something to do** — a command, a flag, or a file. It is the field that
+makes an error worth having, and the first to decay into a restatement of the message.
 *Cited:* IN-11; `fail()`. *Probe:* replace every `next_step` with "Something went wrong." —
-**23 cases go red**, run 2026-09-09 against 278 tests. The count is what makes this a real
-constraint rather than a preference.
+**23 of 333 tests go red** (IN-11, DE-11, DE-15, DE-17, DE-22, DE-19.2), 2026-09-12.
 
 **Bare `cog-graphs` exits 0.**
-Asking a tool what it is has not gone wrong. A zero-priming agent typing the binary name did
-the most sensible thing available; answering with a failure code teaches it otherwise. Raised
-by `/code-review` as a probable bug and kept deliberately.
-*Cited:* IN-10's table, which pins it with the reasoning inline; `overview()`. *Probe:*
-return `EXIT.USAGE` from the front door — IN-10's `bare` row goes red. That the case had to be
-*argued* rather than fixed is why this entry exists.
+Asking a tool what it is has not gone wrong; a zero-priming agent typing the binary name did
+the most sensible thing available. Raised by `/code-review` as a probable bug and kept.
+*Cited:* `overview()`. *Probe:* fail the front door with `EXIT.USAGE` — IN-10's `bare` and
+`--help` rows and DE-19.2 go red.
 
 **A leading `--flag` that isn't global is `unknown_option`, not `unknown_command`.**
 Told "'--nonsense' is not a command", an agent starts guessing command names — the one move
-that cannot help. The distinction tells it to look at flags instead.
-*Cited:* DE-19.8.1; commit `399b4ba`. *Probe:* route unknown leading flags to
-`unknown_command` — DE-19.8.1 goes red.
+that cannot help.
+*Cited:* DE-19.8.1. *Probe:* see stage 5 above.
 
-**`not_implemented` is distinct from `unknown_command`.**
-"You mistyped" and "you read the help correctly and there is nothing behind it yet" imply
-different next moves. An agent that cannot tell them apart retries with a different spelling
-forever. The set of unbuilt commands is one `Set`, and every case that cares derives its list
-from `--help` rather than naming commands, so the whole apparatus retires itself when the set
-empties.
-
-**`UNBUILT` is empty as of DE-21 (2026-09-09), and the apparatus has retired on schedule.**
-The set and its machinery are kept rather than deleted: they are what the next unbuilt command
-will need, and the retirement is only meaningful while the mechanism that would un-retire it
-still works. The probe therefore runs in the other direction now, and it is a better probe
-than the original — it shows the sweep is live rather than merely absent.
-*Cited:* DE-19.3 (amended 2026-09-09, see `docs/3.1/dev-loop.md` (Disputes)), DE-19.6.1, DE-21,
-IN-9/10/11; `UNBUILT`. *Probe:* put a **built** command back into `UNBUILT`
-(`new Set(["convention"])`) — the suite grows from 302 tests to 307 as the derived rows come
-back, and **3 go red**: DE-21's "no command reports itself unbuilt any more", DE-19.3's
-"convention fails loudly rather than silently", and IN-10's "unbuilt command" row. Run
-2026-09-09. Two properties in one command: the sweep revives from the CLI rather than from a
-literal, and a `UNBUILT` entry that is not true is caught rather than believed.
+**`not_implemented` is distinct from `unknown_command`, and `UNBUILT` stays although empty.**
+"You mistyped" and "there is nothing behind this yet" imply different next moves; an agent
+that cannot tell them apart retries with a different spelling forever. Every case that cares
+derives the unbuilt set from `--help`, so the apparatus retired itself when `UNBUILT` emptied
+at DE-21 — and is kept, because the next unbuilt command needs it.
+*Cited:* DE-19.3, DE-21, IN-10; `UNBUILT`. *Probe:* put `convention` back into `UNBUILT` — the
+suite grows from 333 to 338 as derived rows revive, and 4 go red: DE-21, DE-19.3, IN-10's
+unbuilt row, and the S4 error sweep (EN8). Do that *and* answer the fallthrough with
+`unknown_command` — DE-19.3 and IN-10's row stay red. Both 2026-09-12.
 
 ### Argument parsing
 
 **A flag written without a value is an error, never a default.**
-`--dir` with nothing after it silently used the working directory: the one flag whose entire
-purpose is controlling where the User's artifact lands, doing the opposite of what was asked,
-at exit 0. An Operator who writes a flag has stated an intention; if the value did not survive
-whatever produced the command line, a guess is the one response that cannot be right, because
-the guess is invisible.
-*Cited:* DE-19.6; `valueAfter()` — the single choke point, with `optionValue` and
-`optionValues` both routing through it. *Probe:* have `optionValue` return `undefined` instead
-of failing — DE-19.6 goes red.
+`--dir` with nothing after it once silently used the working directory — the one flag whose
+purpose is controlling where the User's artifact lands, doing the opposite at exit 0. If a
+value did not survive whatever produced the command line, a guess cannot be right, because
+it is invisible.
+*Cited:* DE-19.6; stage 8, and `valueAfter()` behind `optionValue` and `optionValues`.
+*Probe:* two layers now guard this, so break both — make `optionValue` return `undefined` on
+a dangling flag *and* disable stage 8: DE-19.6 and DE-19.6.1 go red. Either layer alone holds
+(2026-09-12).
 
 **Syntax before semantics: a dangling flag outranks a missing required flag.**
-`import --graph` is wrong twice — `--graph` has no value *and* `--from` is absent — so the only
-question is which diagnosis an Operator can act on. The dangling flag names a token actually
-present in the command line and says what is wrong with it; "import requires --from" ignores
-the broken thing just written. It is also the likelier real defect, because a value lost to
-shell quoting or a template substitution leaves exactly that shape behind. Deciding this per
-command is how the rule goes selectively true, so the check is uniform across the grammar
-(stage 8 above).
-*Cited:* DE-19.6.1; the `documented`/`valueless` pass, ahead of the required-flag check.
-*Probe:* move the pass below the required-flag check — DE-19.6.1 goes red on `import --graph`.
-Landed 2026-09-09; before it, that invocation answered `missing_option`.
+`import --graph` is wrong twice — no value *and* no `--from`. The dangling flag names a token
+actually present and says what is wrong with it; it is also the likelier real defect, since a
+value lost to shell quoting leaves exactly that shape. The check is uniform across the
+grammar, because deciding it per command is how a rule goes selectively true.
+*Cited:* DE-19.6.1. *Probe:* see stage 8 above.
 
 **The command is the first token that is not a global flag.**
-`--pretty query` and `query --pretty` are the same request. Reading `argv[0]` meant
-`cog-graphs --pretty` — advertised verbatim in the overview's own output — was answered
-"'--pretty' is not a cog-graphs command".
-*Cited:* DE-19.8.1; the `commandIndex` derivation. *Probe:* restore `argv[0]` — DE-19.8.1 goes
-red.
+Reading `argv[0]` answered `cog-graphs --pretty` — advertised in the overview's own output —
+with "'--pretty' is not a cog-graphs command".
+*Cited:* DE-19.8.1; `commandIndex`. *Probe:* take the command from `argv[0]` — five DE-19.8.1
+cases go red.
 
 **`--attr key=value` splits on the *first* `=` only.**
-Splitting on every `=` and rejecting the rest refuses ordinary values: a URL with a query
-string, a formula. Source fidelity is the doc's default assumption, so the engine does not get
-to narrow what a value may contain.
-*Cited:* DE-23; `parseAttrs()`. *Probe:* split on every `=` and reject more than two parts —
-DE-23 goes red.
+Splitting on every `=` refuses ordinary values: a URL with a query string, a formula. The
+engine does not get to narrow what a value may contain.
+*Cited:* DE-23; `parseAttrs()`. *Probe:* reject any pair with more than one `=` — DE-23 goes red.
 
 **`modify-item` sets the named attributes and leaves the rest alone.**
-The tempting shortcut — delete the entity's rows, write the given pairs as the whole record —
-is indistinguishable from correct on a single-attribute item and silently erases everything
-else on any other. Since the Operator names only what changed, that shortcut destroys exactly
-the accumulated knowledge the graph exists to hold.
-*Cited:* DE-14/DE-15; the `ON CONFLICT` upsert in `modify-item`. *Probe:* replace the upsert
-with delete-then-insert — DE-15 goes red only because it uses a multi-attribute entity, which
-is why it does.
+Delete-then-insert is indistinguishable from correct on a single-attribute item and silently
+erases everything else on any other — exactly the accumulated knowledge the graph exists to
+hold.
+*Cited:* DE-13; the `ON CONFLICT` upsert. *Probe:* delete the entity's rows before the upsert
+— DE-13 goes red, because it uses a multi-attribute entity.
 
 ### Bulk ingestion
 
 **The items file mirrors `add-item` in data form.**
 An entity and its attribute map, so an agent that has read `add-item --help` can write one
-without a second lesson, and the two surfaces cannot drift into different models of what an
-item is. The doc ratifies the grammar and the flow (RU-6) and never says what is in the file,
-so this shape is owned here rather than derived.
-It is also exactly the shape `query` returns, so a query's output imports as it is (checked
-2026-09-11: raw `query` output from one graph imported into another, 2 of 2 items with their
-attributes). Ratified by Ethan on 2026-09-11. The sample in `import --help` (under `files`) and
-in the primer come from one constant, `ITEMS_SAMPLE`.
-*Cited:* DE-19, DE-5.1; the `import` branch; `ITEMS_SAMPLE`. *Probe:* write `ITEMS_SAMPLE`'s
-first record flat (`status: open` beside `entity`, no `attributes:` map). DE-5.1's import case
-goes red and its initialize case stays green (run 2026-09-11). Delete `files` from
-`initialize`'s help and the initialize case goes red alone.
+without a second lesson. It is also exactly the shape `query` returns, so a query's output
+imports as it is. The doc never says what is in the file; Ethan ratified this shape on
+2026-09-11. `import --help` and the primer take their sample from one constant.
+*Cited:* DE-19, DE-5.1; `ITEMS_SAMPLE`. *Probe:* write the first record flat (`status: open`
+beside `entity`) — DE-5.1's import case goes red, its initialize case stays green.
 
 **A partial ingestion reports as a structured error on stderr, not as a success payload.**
-The obvious shape is exit 0 with a `rejected` array in the stdout payload. IN-9 forbids it: one
-rule for the whole surface says a non-zero exit puts one object on stderr and leaves stdout
-empty, and an agent piping stdout into a parser must never have a half-successful run corrupt
-the parse. So the report *is* the error object — `fail()` grew an optional `detail` argument to
-carry `ingested` and `rejected` on it — rather than the surface growing one rule plus an
-exception for the only command that can be half-right.
-*Cited:* DE-20, IN-9, IN-11; the partial branch in `import`, and `fail()`. *Probe:* move the
-report to `succeed()` — DE-20's "the report is a structured error" and IN-10's "partial
-ingestion" row both go red.
+IN-9 gives the whole surface one rule — a non-zero exit puts one object on stderr — so the
+report *is* the error object (`fail()`'s `detail` carries `ingested` and `rejected`), rather
+than the surface growing an exception for its one half-right command.
+*Cited:* DE-20, IN-9, IN-11. *Probe:* `succeed()` with the report — IN-10's partial row and
+every DE-20 / DE-20.x reporting case go red.
 
 **What a bulk record must be is taken from `add-item`, never invented.**
-An entity the graph already holds is refused under `entity_exists`, the same code the single
-path uses; a record with no name is refused under `missing_value`, again `add-item`'s. The rule
-is not "be strict", it is "be identical" — a bulk path stricter *or* laxer than the single path
-forces an Operator to learn which one it is talking to. A whitespace-only name is therefore
-accepted here, because `add-item` accepts it.
+A known entity is `entity_exists`, a nameless record `missing_value` — `add-item`'s codes. The
+rule is not "be strict" but "be identical": a bulk path stricter *or* laxer forces an Operator
+to learn which one it is talking to.
 *Cited:* DE-20, DE-20.1. *Probe:* accept a colliding record as an update — DE-20's "the
 offender changed nothing" goes red.
 
-**A record with no entity reports `entity: null`, and one whose entity is not a string gets its
-own code.**
-An empty string is indistinguishable from a genuine empty name, so the report says the record
-had no identifier and the index becomes the only handle. `entity: 2001` is a game called 2001
-that YAML read as a number; the fix is quoting, which is a different action from naming, so it
-is `invalid_entity` rather than `missing_value`. Coercing it silently was the alternative and
-it is worse — a value this program invented, sitting in the Operator's data with nothing saying
-so.
-*Cited:* DE-20.1. *Probe:* restore `typeof item.entity === "string" ? item.entity : ""` — three
-of DE-20.1's four cases go red, including the one where two nameless records collide with each
-other and the report blames `entity_exists` on a name nobody wrote.
+**A record with no entity reports `entity: null`; a non-string entity gets `invalid_entity`.**
+An empty string is indistinguishable from a genuine empty name. `entity: 2001` is a game YAML
+read as a number; the fix is quoting, a different act from naming. Coercing it silently would
+put a value this program invented into the Operator's data.
+*Cited:* DE-20.1. *Probe:* restore `typeof item.entity === "string" ? item.entity : ""` — all
+four DE-20.1 cases go red, and DE-20.3 (2026-09-12).
 
-**The taken-names set grows as records land, rather than being a snapshot.**
-A file naming the same entity twice is refused on its second mention exactly as it would be
-against the artifact. Comparing against a snapshot read once is the obvious implementation and
-it lets the duplicate through to SQLite, where the UNIQUE constraint kills the process
-mid-batch — total collapse on one bad record, which is what partial-with-report exists to
-replace.
-*Cited:* DE-20.2. *Probe:* delete `taken.add(entity)` — both DE-20.2 cases go red. Note only
-one of them did until the probe was run: the crash left the artifact holding exactly the rows
-the other case asserted, so it gained an exit-code assertion. A count that is right because the
-program died before it could be wrong is not a claim.
+**The taken-names set grows as records land.**
+A snapshot read once lets a file's second mention of an entity through to SQLite, where the
+UNIQUE constraint kills the process mid-batch — total collapse on one bad record.
+*Cited:* DE-20.2. *Probe:* delete `taken.add(entity)` — both DE-20.2 cases go red. One only
+did until the other gained an exit-code assertion: a count that is right because the program
+died before it could be wrong is not a claim.
 
 **Nothing-ingested is still partial; "total failure" means the import itself failed.**
-DE-20's sub-bullet invites a fourth outcome for a batch where nothing landed. Declined: the
-exit alphabet has no code for it, and inventing one hands an agent a branch for an outcome
-`ingested: 0` already states exactly. A missing source (2) and an unparseable one (1) are the
-total failures — distinct in kind, since nothing was offered and there is nothing to report per
-record.
-*Cited:* DE-20.3. *Probe:* give the all-rejected case its own exit code — DE-20.3's first case
-goes red, and IN-10's table rejects the new label as unlisted.
+The alphabet has no code for "nothing landed", and `ingested: 0` already states it. A missing
+source (2) and an unparseable one (1) are the total failures.
+*Cited:* DE-20.3. *Probe:* give the all-rejected batch its own exit code — DE-20.3 goes red.
 
 ### The convention
 
 **Amending the convention appends; it never overwrites.**
-The schema said so before the command existed — `convention` is an ordered table with an
-autoincrementing `seq`, not a single row. An Operator who learns in week three that ratings run
-1-10 rather than 1-5 is recording something that *became* true, and the earlier expectation is
-how the items already in the graph are to be read. Overwriting would silently re-date every one
-of them.
-*Cited:* DE-21; the `convention` branch, and the `convention` table in `SCHEMA`. *Probe:* make
-`--append` replace the last row — DE-21's ordering case goes red, and so does the `introduce`
-read-back.
+An Operator who learns in week three that ratings run 1-10 is recording something that
+*became* true, and the earlier expectation is how the items already stored are to be read.
+*Cited:* DE-21; the `convention` table's `seq`. *Probe:* delete the last row before appending
+— DE-21's ordering, sidecar and `introduce` read-back cases go red.
 
 **The amend answers with the whole convention, and rewrites the sidecar only on a write.**
-An agent that amends needs to know what the graph now says about itself before its next write;
-returning only the addition costs it a second call. And a read is a read — regenerating the
-derived face from a command that changed nothing is the IN-4.1 failure.
-*Cited:* DE-21, IN-4.1. *Probe:* return `{ appended }` instead of the list — DE-21's "the amend
-call itself answers with the whole convention" goes red.
+An agent that amends needs what the graph now says about itself before its next write; a read
+that regenerates the derived face is the IN-4.1 failure.
+*Cited:* DE-21, IN-4.1. *Probe:* answer `{ appended }` — DE-21's "answers with the whole
+convention" goes red.
 
 ### The inspectable face
 
 **`inline()` collapses CR/LF/CRLF to a visible `\n` and touches nothing else.**
-Backslashes are deliberately *not* escaped: `C:\games` is an ordinary value in this domain and
-doubling it would make every sidecar pay for the rare case. The accepted tradeoff is that a
-value containing the literal characters `\n` renders identically to one containing a newline —
-ambiguous, but structurally harmless, which is the property that matters.
-*Cited:* DE-19.7; `inline()`. *Probe:* also escape backslashes — **nothing goes red**, which is
-the point: the choice is not pinned by a case, so it is recorded here instead. Reversing it is
-cheap and legitimate; doing so by accident is what this entry prevents.
-
-**Applied to every interpolation, including the namespace.**
-The namespace was the one that got missed: it lands in the sidecar's H1 and in the prose line
-telling the reader how to open the graph.
-*Cited:* DE-19.7.1; commit `6234f9c`. *Probe:* remove `inline()` from the namespace
-interpolation only — DE-19.7.1 goes red while DE-19.7 stays green.
+Backslashes are deliberately *not* escaped: `C:\games` is an ordinary value and doubling it
+would make every sidecar pay for the rare case. The tradeoff: a value containing the literal
+characters `\n` renders like one containing a newline — ambiguous, but structurally harmless.
+*Cited:* DE-19.7; `inline()`. *Probe:* also escape backslashes — DE-19.7's "ordinary values are
+untouched" goes red (2026-09-12; this was unpinned when first written).
 
 **A control character in a namespace is rejected, not escaped.**
-The asymmetry with attribute values is the point. A namespace is a filename and an identifier
-the Operator types back, so a control character in one is never anything but a mistake or an
-attack — there is no legitimate content being refused. An attribute value is the User's own
-data, and refusing it would be the engine putting words in their mouth. Escape data; reject
-identifiers. Both interpolations are *also* escaped, so a future loosening of the validator
-cannot forge a heading on its way to the page.
-*Cited:* DE-19.4, DE-19.7.1; the control-character test in the namespace validator. *Probe:*
-drop the control-character test — DE-19.7.1 goes red. *Probe:* apply the same rejection to
+A namespace is a filename and an identifier the Operator types back, so a control character in
+one is never legitimate content. An attribute value is the User's own data, and refusing it
+would be the engine putting words in their mouth. Escape data; reject identifiers.
+*Cited:* DE-19.4, DE-19.7.1; the namespace validator. *Probe:* drop the control-character test —
+DE-19.7.1's newline, carriage-return and tab cases go red. *Probe:* apply the same test to
 attribute values — DE-23 goes red, which is the asymmetry being asserted.
-
-**`writeSidecar` writes only when the rendering differs.**
-The sidecar is a pure function of the artifact, so an identical rewrite costs an mtime for
-nothing — and an mtime that moves when nothing changed is a lie told to anyone watching the
-directory. It is also what makes IN-7's isolation guarantee *structural* rather than
-incidental, and what makes regeneration safe on the read path.
-*Cited:* IN-7; `writeSidecar()`. *Probe:* write unconditionally — IN-7 goes red. Note the
-converse does **not** hold: see the IN-7 entry under failure patterns, where this exact property
-defeated the case's own stated rationale.
-
-**"Never read" means nothing is ever taken from the file.**
-Since IN-4, `writeSidecar` opens the `.md` to compare. Behaviorally harmless — it compares and
-discards — but the primer told the Operator the file is "never read back" while the code read
-it. The claim is about trust, not about file handles, and it is worth being exact about which
-one is being made. Reworded rather than reverted, in three places.
-*Cited:* DE-19.8.2; commit `d56c485`. *Probe:* ***reasoned.*** No case asserts the wording, and
-one that grepped the primer for a phrase would be a bad case. This entry exists because the
-alternative fix — reverting write-if-different to make the old sentence true — would have been
-the wrong repair, and that reasoning is not recoverable from the diff.
 
 ### `--pretty`
 
 **Depth 0 reflows; everything deeper is inlined.**
-That depth is a real boundary rather than a convenient one: the top-level fields of a payload
-are text the engine wrote — the primer, the introduction — and reflowing them is the entire
-reason `--pretty` exists. Everything nested below is text it was handed. Reflowing *that* lets
-an attribute value of `count: 999` render as a field the payload does not have.
-*Cited:* DE-19.7.1, DE-19.8.2; `prettyLines()`. *Probe:* reflow at every depth — DE-19.7.1 goes
-red on the forged field.
+The top-level fields are text the engine wrote — the primer, the introduction — and reflowing
+them is why `--pretty` exists. Everything nested is text it was handed; reflowing *that* lets a
+value of `count: 999` render as a field the payload does not have.
+*Cited:* DE-19.7.1; `prettyLines()`. *Probe:* reflow at every depth — DE-19.7.1 goes red.
 
 **Emptiness is rendered, not omitted.**
-A bare label with nothing under it cannot be told apart from a renderer that stopped, and the
-reader has no way to check. Array items carry a bullet so the boundary between two is
-countable — otherwise the blank line after an attribute-less item *is* the boundary, and the
-case where the reader most needs it is the case where it disappears.
-*Cited:* DE-19.8.2; commit `d56c485`. *Probe:* omit empty objects instead of printing
-`label: (none)` — DE-19.8.2 goes red.
+A bare label with nothing under it cannot be told apart from a renderer that stopped. Array
+items carry a bullet so the boundary between two is countable.
+*Cited:* DE-19.8.2. *Probe:* omit empty objects instead of printing `label: (none)` —
+DE-19.8.2 goes red.
 
-**The renderer walks the payload generically.**
-No command's shape is known to it, so a command added later is readable without anyone
-remembering to teach it.
-*Cited:* `prettyText()`; DE-19.8's sweep. *Probe:* `import` landed in DE-19 with no `--pretty`
-work at all and IN-9's `--pretty` rows covered it immediately — observed 2026-09-09, and
-`convention` repeated it at DE-21. This is the claim being watched rather than argued.
+**The renderer walks the payload generically**, so a command added later is readable without
+anyone teaching it. *Observed, not probed:* `import` (DE-19) and `convention` (DE-21) landed
+with no `--pretty` work and IN-9's `--pretty` rows covered both on arrival.
 
 ### The filesystem
 
-**No WAL.**
-It leaves `-wal`/`-shm` beside the database, and a graph copied without them has silently lost
-its most recent writes. One short-lived process per command needs no concurrency, so nothing is
-being traded away. Revisit only when concurrent Operators become real — and revisit IN-6 *with*
-it, not instead of it.
-*Cited:* IN-6; `CLAUDE.md`'s standing instruction. *Probe:* add `PRAGMA journal_mode = WAL` —
-IN-6 goes red on the stray files.
+**No WAL.** It leaves `-wal`/`-shm` beside the database, and a graph copied without them has
+lost its latest writes. One short-lived process per command needs no concurrency. Revisit only
+with concurrent Operators — and revisit IN-6 *with* it.
+*Cited:* IN-6. *Probe:* `PRAGMA journal_mode = WAL` after creating the database — both IN-6
+cases go red.
 
 **`--dir` creates one level and says so; two is refused.**
-A missing directory is two different acts wearing one spelling. `--dir ./graphs` from a
-directory the User chose is an ordinary "make me a folder for this"; `--dir ./Documnets/graphs`
-is a typo, and creating it makes the mistake real — the graph lands somewhere nobody will ever
-open, reported as success. The parent is exactly where the two stop looking alike. Creation is
-never silent.
-*Cited:* DE-7.1; commit `98cd148`. *Probe:* use `mkdirSync(..., { recursive: true })` — DE-7.1
-goes red on the two-level case.
+`--dir ./graphs` is "make me a folder for this"; `--dir ./Documnets/graphs` is a typo, and
+creating it lands the graph somewhere nobody will open, reported as success. The parent is
+exactly where the two stop looking alike.
+*Cited:* DE-7.1; the `directory_not_found` check. *Probe:* remove the parent check and create
+recursively — DE-7.1's two-level refusal and its "nothing left behind" go red.
 
 **Temp-root detection asks about the nearest *existing* ancestor.**
-A path that does not exist cannot be `realpath`'d, so where the temp root is a symlink (macOS:
-`/var/folders` behind `/private/var`) the guard compared an unresolved path against a resolved
-one and did not fire. Temp-ness is a property of where a directory sits, so the ancestor answers
-the same question with a path the filesystem can speak about.
-*Cited:* DE-7.1; `nearestExisting()`, used by `isUnderTempRoot()`. *Probe:* ***reasoned on this
-machine.*** The symlink shape does not exist on Windows, so the fix cannot be shown red here. It
-is retained because the reasoning is sound and the cost is one function; a macOS run would settle
-it. Flagged rather than claimed.
+A path that does not exist cannot be `realpath`'d, so where the temp root is a symlink (macOS)
+the guard compared an unresolved path against a resolved one and did not fire.
+*Cited:* DE-7.1; `nearestExisting()`. *Probe:* ***reasoned.*** Bypassing it turns nothing red on
+Windows (2026-09-12), where the symlink shape does not exist; a macOS run settles it.
 
 **The guard stays quiet in an ordinary directory.**
-A warning that fires everywhere is one an Operator learns to scroll past, and then the real one
-is invisible too. This is the entry the paid layer has most directly confirmed: see EN9.
-*Cited:* DE-7, which is deliberately two-directional. *Probe:* emit `created_directory`
-unconditionally — DE-7 goes red on the existing-directory half. That the case has a negative half
-is the entry.
+A warning that fires everywhere is scrolled past, and then the real one is invisible too. The
+paid layer confirmed the cost of the real one: an agent reads it and stops to ask the User
+where the graph belongs (`testing/harness/HARNESS-IMPLEMENTATION.md`, "Where the sandbox
+lives").
+*Cited:* DE-7, deliberately two-directional; DE-7.1. *Probe:* raise `temp_directory`
+unconditionally — DE-7's "stays quiet in an ordinary directory" goes red. Raise
+`created_directory` unconditionally — DE-7.1's "an existing directory is used without comment"
+goes red.
 
 ---
 
 ## Failure patterns that keep recurring
 
-Each cost a slice to find, and all of them will happen again. These are the entries most likely
-to *not* have a probe, because a pattern is a claim about future mistakes rather than about
-current code — where that is so, it says so.
+Claims about future mistakes rather than current code, so most have no probe; the evidence is
+recurrence.
 
-**Silent success.** The command does the wrong thing and reports 0. Every instance so far:
-`process.exit(undefined)`; `--dir` with no value; `--dir` inventing a tree; a namespace of
-`../escaped` writing outside the target; `initialize` destroying a pre-existing `notes.md`. The
-tell is always that a *reasonable* input produces a *plausible* result — nothing downstream can
-detect it, because the artifact is well-formed, it is just the wrong artifact. When adding a code
-path, ask what it does with input that is wrong but not malformed.
-*Cited:* DE-19.4, DE-19.5, DE-19.6, DE-7.1 — five instances, five slices. *Probe:* the frequency
-is the evidence; the list is falsified by a sixth instance arising from something other than a
-wrong-but-well-formed input.
+**Silent success.** The command does the wrong thing and reports 0: `process.exit(undefined)`;
+`--dir` with no value; `--dir` inventing a tree; a namespace of `../escaped` writing outside the
+target; `initialize` destroying a pre-existing `notes.md`. A *reasonable* input produces a
+*plausible* result, and the artifact is well-formed — just the wrong artifact. When adding a
+code path, ask what it does with input that is wrong but not malformed.
+*Cited:* DE-19.4, DE-19.5, DE-19.6, DE-7.1.
 
-**One face hardened, another added.** DE-19.7 escaped the sidecar. DE-19.8 then added `--pretty`
-with no guard, and the same forgery worked again.
-*Cited:* commits `2558210` then `3c9fd5b` then `6234f9c` — the gap between the second and third
-is the pattern, visible in the log.
+**One face hardened, another added.** DE-19.7 escaped the sidecar; DE-19.8 then added `--pretty`
+unguarded and the same forgery worked again. *Cited:* commits `2558210`, `3c9fd5b`, `6234f9c`.
 
-**The likelier error fires first.** DE-19.6's grammar sweep runs every value-taking flag in an
-empty directory and asserts only `exitCode !== 0`. Every row fails on `no_graph_here`,
-`missing_option` or `not_implemented` — never on the rule under test. It passed against the
-pre-fix engine. A sweep must give each row enough context to reach the code being tested, and
-assert the error code **by name**.
-*Cited:* DE-19.6.1; commit `c5f4e1b`. *Probe:* recurred 2026-09-09 in DE-19 — `import --graph`
-answered `missing_option`, the likelier error, ahead of the `missing_value` under test. Two
-independent occurrences, the second predicted by the first.
+**The likelier error fires first.** A sweep that runs every flag in an empty directory fails
+every row on `no_graph_here` or `missing_option` — never on the rule under test — and passes
+against a broken engine. Give each row enough context to reach the code under test, and assert
+the error code **by name**. *Cited:* DE-19.6.1; recurred in DE-19.
 
-**Green on arrival is not evidence.** A case that has never been red has not been shown to test
-anything. Break the specific behavior, watch the specific case fail, revert, record the probe in
-the commit message.
-*Cited:* DE-22, DE-23, IN-6, IN-7 were all green on arrival and all probed. *Probe:* twice the
-probe disproved the case's own stated rationale — IN-7's mtime test does not catch directory-wide
-regeneration (write-if-different makes that engine wasteful rather than wrong) and needed a
-two-part probe; DE-19.7's `not.toContain` was too strong, since the forged text appearing *inside*
-a line is the escaped value being legible. Two wrong rationales out of four green-on-arrival cases
-is the argument. **A weak probe is itself a finding:** at DE-20.2 removing `taken.add` reddened one
-of two cases, and the survivor gained an assertion; at DE-21 the amend case passed against an
-engine with no `convention` command at all, and gained an exit-code assertion first.
+**Green on arrival is not evidence.** Break the behavior, watch the case fail, revert, record the
+probe in the commit. Twice a probe disproved a case's own rationale (IN-7, DE-19.7), and a weak
+probe is itself a finding — DE-20.2 and DE-21 each gained an assertion from one. The 2026-09-12
+pass is the same lesson at file scale: three entries here had outlived their probes.
 
 **Non-idempotent commands cannot be run twice and diffed.** `initialize`, `add-item` and
-`remove-item` answer differently the second time precisely because they worked the first.
-*Cited:* four false reds in the IN-9 sweep came from comparing a plain run against a `--pretty`
-re-run; commit `b9a37c9`.
+`remove-item` answer differently the second time because they worked. *Cited:* four false reds
+in the IN-9 sweep; commit `b9a37c9`.
 
-**A snapshot baseline must include what setup wrote.** Taking `readdirSync` before writing the
-profile fixture asserts that writing the profile left a file behind — true, and not the point.
-*Cited:* IN-6; commit `a4edde6`.
-
-**Editing a frozen file's import line is a removal.** The guard rejects it. Add a *separate new*
-import line instead — and the same holds for a reflowed paragraph, a retitled `describe`, or a
-fixed typo in a comment.
-*Cited:* caught three times, the last on 2026-09-09 when a rename script rewrote a *comment* in
-the frozen `testing/evals/eval_smoke.ts`. The guard cannot tell a comment from an assertion and
-should not have to. See `docs/3.1/dev-loop.md` (Disputes).
+**A snapshot baseline must include what setup wrote**, or it asserts that the fixture was
+written. *Cited:* IN-6; commit `a4edde6`.
 
 ---
 
-## Empirical claims and how to re-verify them
+## Empirical claims
 
-Rows EN1–EN8 were observed on this machine and cost nothing to re-check; each carries its own
-command, since none of them is automated (`bun run verify:claims` covers the harness doc's SDK
-claims, not these). EN9 came from the paid layer and is priced accordingly. An unverifiable row
-does not belong in this table.
+Observed on this machine, free to re-check. IDs are stable; retired rows leave gaps.
 
 | ID | Claim | Why it matters | Verification |
 |---|---|---|---|
-| **EN1** | `process.exit(undefined)` exits **0**. | The whole reason typecheck is in the gate. A missing key on the exit-code map turns every failure into a reported success. | `bun -e 'process.exit(undefined)'; echo $?` — run 2026-09-09, printed `0`. |
-| **EN2** | `tsc` catches an undefined `EXIT` member; `bun test` does not. | Same. The suite is structurally blind to it, because the assertion reads the same wrong value the code does. | Delete a key from `EXIT`, run `bun run typecheck` then `bun test`. |
-| **EN3** | No `-wal`/`-shm` files are produced. | IN-6, and the doc's portability claim that the artifact is *a file*. | `bun run check`, or add `PRAGMA journal_mode = WAL` and watch IN-6 fail. |
-| **EN4** | Creating a `.sqlite` inside the repo costs ~1.8 s median, up to ~4.6 s; the identical command under `%TEMP%` costs ~104 ms. `--help` in the same directory is 64 ms. | Six runs each. Real-time AV scanning a developer directory that `%TEMP%` is exempt from — environment, not engine. It is why `bun test` runs with `--timeout 20000`. The default 5 s timeout failed DE-7 and DE-19.4 in about half of all runs, and an intermittently-lying suite is worse than a red one. | Time `initialize` in both locations. Re-measure if the suite starts flaking again. |
-| **EN5** | A read-only sidecar that is *stale* makes an unguarded `writeSidecar` throw `EPERM`; a read-only sidecar that is *current* does not. | Write-if-different means the crash only reproduces when content actually differs. Anyone re-testing IN-4.1 will otherwise conclude it was never broken. | Edit the `.md`, `chmod 0o444` it, run `query`. |
-| **EN6** | `Bun.YAML.parse` handles both the profile and the items formats with no dependency. | The repo adds no external deps. JSON-quoted values in the fixtures are valid YAML and survive apostrophes, `=`, non-ASCII and newlines without a YAML writer. | `writeProfileYml` round-trips in DE-6/DE-23; `writeItemsYml` in DE-19, landed 2026-09-09. |
-| **EN7** | On POSIX a filename containing a newline is creatable. | Why the namespace validator rejects control characters rather than relying on the filesystem to. | **Reasoned, not observed** — not reproducible on Windows, which is exactly why it needed writing down. Weakest row in the table; a POSIX run settles it. |
-| **EN8** | With `UNBUILT` empty (standing since DE-21), returning a *built* command to it grows the suite from 302 tests to 307 and reds exactly 3. | The five revived tests prove the sweep is derived from the CLI rather than absent; the three failures prove a false `UNBUILT` entry is caught rather than believed. | Edit `UNBUILT` to `new Set(["convention"])`, run `bun test testing/tests`. Run 2026-09-09. |
-| **EN9** | **Where the graph lands changes how much an agent spends getting there.** Same Walking Skeleton scenario: 21 agent turns / 15 tool calls / 186,382 tokens in `~/cog-graph-workspaces/`, against 24 / 18 / 245,997 under the platform temp root. | DE-7's warning is doing exactly the work it was built for — the agent read it, stopped, and asked the User whether to move the graph before writing. That is right, and it costs roughly a sixth of the ergonomics budget, which is only visible from a live run. Location is part of this interface's UX, not just the harness's setup. | `bun run eval:skeleton` (~$0.40) with the sandbox pointed at `tmpdir()` versus the home workspace. Run 2026-09-09. Full account in `testing/harness/HARNESS-IMPLEMENTATION.md`. |
-
----
-
-## Owed to Ethan
-
-Nothing, as of 2026-09-11. Ethan's four rulings that day, for the record:
-
-- **The `items.yml` shape: ratified.** See the entry above. Checking it also turned up a
-  hole: no surface showed the shape. That is now DE-5.1.
-- **The IN-9/10/11 amendment: confirmed.** See `docs/3.1/dev-loop.md` (Disputes).
-- **Minted-case numbering: by subject first, by the slice in progress second.** The rule
-  is in `docs/3.1/dev-loop.md` (The build loop). The DE-19.1–19.8 block keeps its provenance numbers, because its IDs
-  are cited everywhere.
-- **Zero-based `index`: ratified.** The field's name settles the ambiguity in "by
-  position", and its reader is an agent indexing back into the array it just wrote.
+| **EN1** | `process.exit(undefined)` exits **0**. | Why typecheck is in the gate. | `bun -e 'process.exit(undefined)'; echo $?` — printed `0` on bun 1.3.14, 2026-09-12. |
+| **EN2** | `tsc` catches an undefined `EXIT` member at the source; `bun test` catches it only where a test asserts that code. | The gate, not the suite, is what makes a partial map impossible. | Delete a key from `EXIT`, run `bun run typecheck` then the files asserting that code. `ALREADY_EXISTS`: typecheck fails, 6 red (2026-09-12). |
+| **EN4** | Creating a `.sqlite` costs ~700 ms on the E: drive (a spinning SMR hard disk) and ~10 ms on the C: NVMe SSD — in a temp directory or not. A CLI call costs ~66 ms, 49 of them bun startup. | The full suite's ~75 s is process count, not the disk: ~5 s per file-scoped probe, either drive. The `--timeout 20000` was set when DE-7's ordinary-directory sandboxes sat on the hard disk. Corrects an earlier reading that blamed antivirus. | Time `new Database(path, { create: true })` in each location; time `bun engine/main.ts --help`. Measured 2026-09-12, median of 6–7. |
+| **EN5** | A read-only sidecar that is *stale* makes an unguarded `writeSidecar` throw `EPERM`; a *current* one does not. | Anyone re-testing IN-4.1 must make the content differ, or conclude it was never broken. | Edit the `.md`, `chmod 0o444` it, run `query`. |
+| **EN6** | `Bun.YAML.parse` reads both the profile and items formats with no dependency. | The repo adds no external deps. | DE-6, DE-19 and DE-23 round-trip through it. |
+| **EN7** | On POSIX a filename containing a newline is creatable. | Why the namespace validator rejects control characters rather than trusting the filesystem. | ***Reasoned*** — not reproducible on Windows; a POSIX run settles it. |
+| **EN8** | With `UNBUILT` empty, returning a built command to it grows the suite from 333 to 338 tests and reds exactly 4. | The revived rows prove the sweep is derived from the CLI; the failures prove a false entry is caught. | `new Set(["convention"])` in `UNBUILT`, run `bun test`. 2026-09-12. |
