@@ -22,7 +22,8 @@ to hold it.
 
 | Path | What it is |
 |---|---|
-| `engine/main.ts` | The entire CLI. One file, no framework. Override the entrypoint under test with `COG_CLI_ENTRY`. |
+| `engine/main.ts` | The CLI's entry point, and the only place that writes output or exits. Its header maps the six modules beside it. No framework, no dependencies. Override the entrypoint under test with `COG_CLI_ENTRY`. |
+| `engine/` (plugin) | Also the Claude Code plugin root: `.claude-plugin/plugin.json`, `bin/` launchers, the `cog-graphs` skill, and the primer hook. The repo root's `.claude-plugin/marketplace.json` lists it. Check with `claude plugin validate .`. |
 | `testing/tests/*.test.ts` | The cheap layer. Spec. |
 | `testing/tests/helpers.ts` | Fixture builders. Mechanism. |
 | `testing/evals/*.ts` | The paid layer — scenarios run against a live agent. Spec. |
@@ -44,12 +45,13 @@ view of it, and nothing is ever taken back from the view.** And the exit alphabe
 `0 ok ; 1 usage ; 2 not found ; 3 already exists ; 4 partial ingestion ; 5 ambiguous ;
 6 internal`. A new command picks from that list; it does not extend it.
 
-Run `bun run check`, not just `bun test`: a missing key on the exit-code map exits **0**
-while printing a good error. `tsc` catches that at the source; the tests catch it only
-where they assert that exact code.
+Every error code is declared once, with its exit code, in `engine/errors.ts`. Run `bun run
+check`, not just `bun test`: a missing key on the exit-code map exits **0** while printing a
+good error. `tsc` catches that at the source; the tests catch it only where they assert that
+exact code.
 
-`engine/IMPLEMENTATION.md` polices itself: every entry names a probe (a change to
-`main.ts` and the case expected to go red). Run a probe against the one test file that
+`engine/IMPLEMENTATION.md` polices itself: every entry names a probe (a change to the
+engine and the case expected to go red). Run a probe against the one test file that
 holds its case — seconds, not the full suite — and delete any entry whose probe stays green.
 
 ## Roles
